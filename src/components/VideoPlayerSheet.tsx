@@ -16,9 +16,11 @@ export function VideoPlayerSheet({ asset, title, onClose }: VideoPlayerSheetProp
   const { t } = useTranslation();
   const playableUrl = useVideos((s) => s.playableUrl);
   const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let revoked: string | null = null;
+    setFailed(false);
     if (asset) {
       void playableUrl(asset).then((u) => {
         setUrl(u);
@@ -51,8 +53,19 @@ export function VideoPlayerSheet({ asset, title, onClose }: VideoPlayerSheetProp
             allowFullScreen
           />
         </div>
-      ) : isFilePlayable && url ? (
-        <video src={url} controls playsInline className="w-full rounded-xl" />
+      ) : isFilePlayable && url && !failed ? (
+        <video
+          src={url}
+          controls
+          playsInline
+          autoPlay
+          className="w-full rounded-xl"
+          onError={() => setFailed(true)}
+        />
+      ) : failed ? (
+        <p className="rounded-xl bg-surface-raised/60 p-3 text-sm text-slate-300">
+          {t('video.missingFile')}
+        </p>
       ) : (
         <div className="space-y-3">
           <p className="rounded-xl bg-surface-raised/60 p-3 text-sm text-slate-300">{t('video.fallback')}</p>

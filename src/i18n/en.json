@@ -176,6 +176,7 @@
     "offlineHint": "Save all clips so they play without internet.",
     "remove": "Remove download",
     "setUrl": "Set video URL",
+    "missingFile": "No video file found for this exercise yet. Add a matching .mp4 to public/exercise_videos/.",
     "fallback": "This source can't be saved offline. Open it online, or paste a direct video file (.mp4) URL."
   },
   "import": {

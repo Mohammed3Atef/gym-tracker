@@ -2,59 +2,49 @@ import type { VideoAsset } from '@/types';
 import { SEED_EXERCISE_LIST } from './workoutPlan.seed';
 
 /**
- * Local exercise video files. The user placed the coach's clips in
- * `public/exercise_videos/` so they work offline. We map each exercise id to
- * its file name; the app serves them same-origin at `/exercise_videos/...` and
- * the service worker caches them (range-request aware) for offline playback.
+ * Connect every exercise to its local video BY NAME. The user named each clip in
+ * `public/exercise_videos/` after the exercise, so the file is derived from the
+ * exercise's name (alphanumerics, lowercased). A small alias table covers the
+ * few files whose name differs from the app's display name (e.g. the file
+ * "incline db press" vs the exercise "Incline dumbbell press").
+ *
+ * No YouTube / remote URLs are used — playback is 100% from the local files.
+ * Drop a correctly-named file into the folder and it links automatically.
  */
-const LOCAL_VIDEOS: Record<string, string> = {
-  lat_stretch_er: 'lat stretch with external rotation.mp4',
-  upside_down_kb: 'upside down kb.mp4',
-  rope_crunch: 'rope crunch.mp4',
-  incline_db_press: 'incline db press.mp4',
-  peck_deck: 'peck deck machine.mp4',
-  chest_press_machine: 'chest press machine.mp4',
-  db_lateral_raise: 'db lateral raise.mp4',
-  tricep_overhead: 'tricep overhead extension.mp4',
-  db_front_raise: 'db front raise.mp4',
-  tricep_pushdown: 'tricep push down.mp4',
-  scapula_pulls: 'single arm scapula pulls.mp4',
-  scapula_retractions: 'scapula retractions.mp4',
-  back_extension: 'back extension.mp4',
-  low_row_close: 'seated low row close grip.mp4',
-  // low_row_wide: no file provided
-  lat_pulldown_wide: 'lat pulldown wide grip.mp4',
-  rear_delt_fly: 'rear delt fly machine.mp4',
-  seated_db_curl: 'seated bicep curl with db.mp4',
-  db_shrugs: 'db shrugs.mp4',
-  machine_preacher_curl: 'machine preacher curl.mp4',
-  deep_lunge_rockbacks: 'deep lunge rockbacks.mp4',
-  ankle_mobility: 'ankle mobility.mp4',
-  hip_cars: 'hip cars.mp4',
-  adductor_machine: 'adductor machine.mp4',
-  leg_press: 'leg press machine.mp4',
-  lying_curl: 'lying curl.mp4',
-  leg_extension: 'leg extension.mp4',
-  rdl_db: 'rdl db.mp4',
-  seated_calves: 'seated calves machine.mp4',
-  leg_raises: 'leg raises.mp4',
+
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Exercise id -> file basename, only where the file name differs from the
+// exercise's display name (otherwise the name itself is used).
+const ALIAS: Record<string, string> = {
+  incline_db_press: 'incline db press',
+  peck_deck: 'peck deck machine',
+  db_lateral_raise: 'db lateral raise',
+  db_front_raise: 'db front raise',
+  upside_down_kb: 'upside down kb',
+  seated_db_curl: 'seated bicep curl with db',
+  db_shrugs: 'db shrugs',
+  rdl_db: 'rdl db',
+  seated_calves: 'seated calves machine',
+  lying_curl: 'lying curl',
 };
 
 /** Same-origin URL to a bundled local video file (spaces percent-encoded). */
 export function localVideoUrl(file: string): string {
-  return `/exercise_videos/${encodeURIComponent(file)}`;
+  return `/exercise_videos/${encodeURIComponent(file)}.mp4`;
 }
 
 export const SEED_VIDEO_ASSETS: VideoAsset[] = SEED_EXERCISE_LIST.map((e) => {
-  const file = LOCAL_VIDEOS[e.id];
-  const sourceUrl = file ? localVideoUrl(file) : null;
+  const file = ALIAS[e.id] ?? norm(e.name);
   return {
     id: e.videoId,
     exerciseId: e.id,
     title: `${e.name} — explanation`,
-    sourceUrl,
-    kind: sourceUrl ? 'file' : 'unknown',
-    status: sourceUrl ? 'not-downloaded' : 'link-pending',
+    sourceUrl: localVideoUrl(file),
+    kind: 'file',
+    status: 'not-downloaded',
     updatedAt: 0,
   };
 });

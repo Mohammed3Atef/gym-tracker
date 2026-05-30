@@ -10,8 +10,9 @@ import { SEED_PROFILE, SEED_SETTINGS, SEED_REMINDERS } from './seed/defaults';
  * installs pick up the new data on next launch. User logs are never touched.
  *  v2: real 5-day split (Push/Pull/Legs/Push/Pull) + real YouTube video links.
  *  v3: switch videos to local offline files in public/exercise_videos/.
+ *  v4: connect every exercise to its local file by name.
  */
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 
 const meta = localforage.createInstance({ name: 'gym-tracker', storeName: 'meta' });
 
