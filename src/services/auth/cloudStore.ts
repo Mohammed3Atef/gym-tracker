@@ -16,6 +16,7 @@ interface CloudState {
   signIn: (email: string, password: string, create?: boolean) => Promise<void>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  wipeCloud: () => Promise<void>;
 }
 
 export const useCloud = create<CloudState>((set, get) => ({
@@ -75,5 +76,12 @@ export const useCloud = create<CloudState>((set, get) => ({
     } finally {
       set({ syncing: false });
     }
+  },
+
+  async wipeCloud() {
+    const { user } = get();
+    if (!user) return;
+    const { SyncEngine } = await import('@/data/sync/SyncEngine');
+    await new SyncEngine(user.uid).wipeCloud();
   },
 }));

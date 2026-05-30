@@ -12,6 +12,7 @@ import { useWorkout } from '@/stores/workoutStore';
 import { useHabits } from '@/stores/habitStore';
 import { usePhotos } from '@/stores/photoStore';
 import { clearAllLocalData, clearDayData } from '@/data/reset';
+import { confirmDialog, alertDialog } from '@/stores/dialogStore';
 import { shortDate } from '@/lib/utils';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
@@ -65,7 +66,13 @@ export function Settings() {
   };
 
   const clearDay = async () => {
-    if (!window.confirm(t('settings.clearDayConfirm', { date: shortDate(selectedDay, settings.locale) }))) return;
+    const ok = await confirmDialog({
+      title: t('settings.clearDay'),
+      message: t('settings.clearDayConfirm', { date: shortDate(selectedDay, settings.locale) }),
+      confirmLabel: t('common.delete'),
+      danger: true,
+    });
+    if (!ok) return;
     await clearDayData(selectedDay);
     // Reload the affected day-scoped stores.
     await Promise.all([
@@ -74,12 +81,32 @@ export function Settings() {
       useCardio.getState().load(),
       usePhotos.getState().load(),
     ]);
+    useWorkout.getState().loadDay(selectedDay);
     await useHabits.getState().refresh(selectedDay);
+    // Push the deletion to the cloud now (if signed in & online) so it sticks.
+    if (cloud.user) void cloud.syncNow();
   };
 
   const resetAll = async () => {
-    if (!window.confirm(t('settings.resetConfirm'))) return;
-    if (cloud.user) await cloud.signOut(); // avoid immediate re-pull from cloud
+    const ok = await confirmDialog({
+      title: t('settings.resetAll'),
+      message: t('settings.resetConfirm'),
+      confirmLabel: t('settings.resetAll'),
+      danger: true,
+    });
+    if (!ok) return;
+    // Also wipe the cloud backup so data doesn't sync back — but stay signed in.
+    if (cloud.user) {
+      if (!navigator.onLine) {
+        await alertDialog({ title: t('settings.resetAll'), message: t('settings.resetOffline') });
+      } else {
+        try {
+          await cloud.wipeCloud();
+        } catch {
+          /* ignore — local clear still proceeds */
+        }
+      }
+    }
     await clearAllLocalData();
     window.location.reload();
   };

@@ -1,6 +1,7 @@
 import localforage from 'localforage';
 import { getDataSource } from './dataSource';
 import { blobStore } from './blobStore';
+import { recordDeletion, recordDeletions } from './sync/tombstones';
 
 /** All localForage object stores used by the app (kept in sync with adapters). */
 const STORES = [
@@ -18,6 +19,7 @@ const STORES = [
   'reminders',
   'blobs',
   'meta',
+  'deletions',
 ];
 
 /**
@@ -43,19 +45,23 @@ export async function clearDayData(date: string): Promise<void> {
   await ds.nutritionLogs.remove(date);
   await ds.weightLogs.remove(date);
   await ds.dailyChecklists.remove(date);
+  // Tombstones so these deletions reach the cloud (date-keyed docs use the date).
+  await recordDeletion('workoutLogs', date);
+  await recordDeletion('nutritionLogs', date);
+  await recordDeletion('weightLogs', date);
 
   const cardio = await ds.cardioLogs.getAll();
-  await Promise.all(
-    cardio.filter((c) => c.date === date).map((c) => ds.cardioLogs.remove(c.id)),
-  );
+  const cardioIds = cardio.filter((c) => c.date === date).map((c) => c.id);
+  await Promise.all(cardioIds.map((id) => ds.cardioLogs.remove(id)));
+  await recordDeletions('cardioLogs', cardioIds);
 
   const photos = await ds.progressPhotos.getAll();
+  const dayPhotos = photos.filter((p) => p.date === date);
   await Promise.all(
-    photos
-      .filter((p) => p.date === date)
-      .map(async (p) => {
-        await blobStore.remove(p.localKey);
-        await ds.progressPhotos.remove(p.id);
-      }),
+    dayPhotos.map(async (p) => {
+      await blobStore.remove(p.localKey);
+      await ds.progressPhotos.remove(p.id);
+    }),
   );
+  await recordDeletions('progressPhotos', dayPhotos.map((p) => p.id));
 }

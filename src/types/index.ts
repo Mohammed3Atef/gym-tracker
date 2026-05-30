@@ -99,7 +99,8 @@ export interface WorkoutLog {
   id: string; // == date
   date: DayKey;
   dayId: string;
-  startedAt: number;
+  /** When the session timer was started. null = opened but not started yet. */
+  startedAt: number | null;
   endedAt: number | null;
   durationSec: number;
   exercises: ExerciseLog[];

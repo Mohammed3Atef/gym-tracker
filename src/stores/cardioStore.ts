@@ -4,6 +4,7 @@ import { getDataSource } from '@/data/dataSource';
 import { uid } from '@/lib/utils';
 import { notifyHabitChange } from './habitStore';
 import { useDay } from './dayStore';
+import { recordDeletion } from '@/data/sync/tombstones';
 
 interface CardioState {
   cardioLogs: CardioLog[];
@@ -82,6 +83,7 @@ export const useCardio = create<CardioState>((set, get) => ({
 
   async removeCardio(id) {
     await getDataSource().cardioLogs.remove(id);
+    await recordDeletion('cardioLogs', id);
     set({ cardioLogs: get().cardioLogs.filter((c) => c.id !== id) });
     notifyHabitChange();
   },

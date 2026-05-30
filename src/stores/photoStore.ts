@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { PhotoPose, ProgressPhoto } from '@/types';
 import { getDataSource } from '@/data/dataSource';
 import { blobStore } from '@/data/blobStore';
+import { recordDeletion } from '@/data/sync/tombstones';
 import { today, uid } from '@/lib/utils';
 
 interface PhotoState {
@@ -44,6 +45,7 @@ export const usePhotos = create<PhotoState>((set, get) => ({
     const photo = get().photos.find((p) => p.id === id);
     if (photo) await blobStore.remove(photo.localKey);
     await getDataSource().progressPhotos.remove(id);
+    await recordDeletion('progressPhotos', id);
     set({ photos: get().photos.filter((p) => p.id !== id) });
   },
 

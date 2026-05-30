@@ -1,8 +1,9 @@
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { ensureFirebase } from '@/data/adapters/firebase/firebase';
 import { getDataSource } from '@/data/dataSource';
 import type { Repository, SingletonRepository } from '@/data/repositories';
 import type { AppSettings, UserProfile } from '@/types';
+import { clearAllTombstones, clearTombstone, listTombstones } from './tombstones';
 
 /**
  * Conflict-safe one-way-then-merge sync between the local store (source of
@@ -86,10 +87,39 @@ export class SyncEngine {
     }
   }
 
+  /** Push queued local deletions to the cloud (so deleted records don't return). */
+  async flushDeletions(): Promise<number> {
+    const { db } = ensureFirebase();
+    const tombs = await listTombstones();
+    for (const t of tombs) {
+      try {
+        await deleteDoc(doc(db, `users/${this.uid}/${t.collection}/${t.id}`));
+      } catch {
+        /* ignore; will retry next sync */
+      }
+      await clearTombstone(t.collection, t.id);
+    }
+    return tombs.length;
+  }
+
+  /** Delete ALL of this user's cloud data (used by "reset all data"). */
+  async wipeCloud(): Promise<void> {
+    const { db } = ensureFirebase();
+    for (const name of COLLECTIONS) {
+      const snap = await getDocs(collection(db, `users/${this.uid}/${name}`));
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+    }
+    await deleteDoc(doc(db, `users/${this.uid}/profile/main`)).catch(() => undefined);
+    await deleteDoc(doc(db, `users/${this.uid}/settings/app`)).catch(() => undefined);
+    await clearAllTombstones();
+  }
+
   /** Full bidirectional sync pass. */
   async sync(): Promise<{ pushed: number; pulled: number }> {
     if (!navigator.onLine) return { pushed: 0, pulled: 0 };
     const ds = getDataSource();
+    // Deletions FIRST, so pulling can't re-add records we just deleted.
+    await this.flushDeletions();
     await this.syncSingleton<UserProfile>(`users/${this.uid}/profile/main`, ds.profile);
     await this.syncSingleton<AppSettings>(`users/${this.uid}/settings/app`, ds.settings);
     let pushed = 0;

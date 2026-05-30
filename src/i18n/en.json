@@ -59,6 +59,8 @@
     "resumeSession": "Resume session",
     "session": "Session",
     "rest": "Rest",
+    "restTimer": "Rest timer",
+    "restCustom": "Custom (e.g. 1:30)",
     "set": "Set",
     "warmup": "Warm-up",
     "working": "Working",
@@ -169,6 +171,7 @@
     "clearDayConfirm": "Delete all data logged for {{date}} (workout, food, cardio, weight, photos)?",
     "resetAll": "Reset all data (start fresh)",
     "resetConfirm": "This erases ALL local data and restores the default plan. This cannot be undone. Continue?",
+    "resetOffline": "You're offline — your cloud backup won't be cleared and may restore data when you reconnect. Connect to the internet for a full reset.",
     "enableNotifications": "Enable notifications",
     "goals": {
       "muscle_gain": "Muscle gain",

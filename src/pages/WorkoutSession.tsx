@@ -6,14 +6,18 @@ import { useWorkout } from '@/stores/workoutStore';
 import { useSettings } from '@/stores/settingsStore';
 import { useTimer } from '@/stores/timerStore';
 import { useVideos } from '@/stores/videoStore';
+import { confirmDialog } from '@/stores/dialogStore';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useElapsed } from '@/hooks/useElapsed';
 import { ExerciseCard } from '@/components/ExerciseCard';
 import { RestTimerBar } from '@/components/RestTimerBar';
 import { VideoPlayerSheet } from '@/components/VideoPlayerSheet';
+import { Sheet } from '@/components/Sheet';
 import { Icon } from '@/components/Icon';
-import { formatDuration } from '@/lib/utils';
+import { formatDuration, parseRestInput } from '@/lib/utils';
 import { HAPTIC, vibrate } from '@/lib/haptics';
+
+const REST_PRESETS = [45, 60, 90, 120, 150, 180];
 
 export function WorkoutSession() {
   const { t } = useTranslation();
@@ -24,26 +28,30 @@ export function WorkoutSession() {
   const updateSet = useWorkout((s) => s.updateSet);
   const toggleSetDone = useWorkout((s) => s.toggleSetDone);
   const addSet = useWorkout((s) => s.addSet);
+  const removeSet = useWorkout((s) => s.removeSet);
+  const beginTimer = useWorkout((s) => s.beginTimer);
   const finishSession = useWorkout((s) => s.finishSession);
   const previousFor = useWorkout((s) => s.previousFor);
 
   const restDefault = useSettings((s) => s.settings?.restDefaultSec ?? 90);
   const startRest = useTimer((s) => s.startRest);
   const timerOn = useTimer((s) => s.running || s.paused);
-  const removeSet = useWorkout((s) => s.removeSet);
   const byExercise = useVideos((s) => s.byExercise);
 
   const [videoAsset, setVideoAsset] = useState<VideoAsset | null>(null);
   const [videoTitle, setVideoTitle] = useState('');
-  // Accordion: any number of exercise cards can be open at once.
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [restOpen, setRestOpen] = useState(false);
+  const [restSec, setRestSec] = useState(restDefault);
+  const [customRest, setCustomRest] = useState('');
   const didInit = useRef(false);
 
-  // Keep the screen awake for the whole session.
-  useWakeLock(!!active);
-  const elapsed = useElapsed(active?.startedAt ?? null);
+  const running = !!active?.startedAt && !active?.finished;
+  useWakeLock(running);
+  // Tick only while a live session is running; finished workouts show the saved time.
+  const ticking = useElapsed(active && !active.finished ? active.startedAt : null);
+  const elapsed = active?.finished ? active.durationSec : ticking;
 
-  // Auto-expand the first not-yet-finished exercise the first time the session loads.
   useEffect(() => {
     if (!active || didInit.current) return;
     didInit.current = true;
@@ -79,21 +87,38 @@ export function WorkoutSession() {
     const wasDone = ex?.sets.find((s) => s.setIndex === setIndex)?.done;
     toggleSetDone(exerciseId, setIndex);
     if (!wasDone) {
-      // Completing a set: haptic + auto-start rest timer.
+      // Completing a set: haptic + auto-start the rest timer with the chosen duration.
       vibrate(HAPTIC.success);
-      const restSec = plan.exercises[exerciseId]?.restSec ?? restDefault;
       startRest(restSec);
     }
   };
 
   const openVideo = (exerciseId: string) => {
-    const asset = byExercise(exerciseId);
-    setVideoAsset(asset);
+    setVideoAsset(byExercise(exerciseId));
     setVideoTitle(plan.exercises[exerciseId]?.name ?? '');
   };
 
+  const pickRest = (sec: number) => {
+    setRestSec(sec);
+    startRest(sec);
+    setRestOpen(false);
+  };
+
+  const applyCustomRest = () => {
+    const sec = parseRestInput(customRest);
+    if (sec && sec > 0) {
+      setCustomRest('');
+      pickRest(sec);
+    }
+  };
+
   const handleFinish = async () => {
-    if (!window.confirm(t('workout.confirmFinish'))) return;
+    const ok = await confirmDialog({
+      title: t('workout.finishWorkout'),
+      message: t('workout.confirmFinish'),
+      confirmLabel: t('common.finish'),
+    });
+    if (!ok) return;
     await finishSession();
     navigate('/progress');
   };
@@ -105,9 +130,19 @@ export function WorkoutSession() {
         <button type="button" onClick={() => navigate('/workout')} className="icon-btn h-10 w-10" aria-label="back">
           <Icon name="chevron" size={18} className="rotate-180" />
         </button>
-        <div className="text-center">
+        <div className="flex flex-col items-center">
           <p className="text-xs text-slate-400">{day?.title} · {doneSets}/{totalSets} {t('common.sets')}</p>
-          <p className="font-mono text-lg font-bold tabular-nums text-brand-light">{formatDuration(elapsed)}</p>
+          {active.finished || active.startedAt ? (
+            <p className="font-mono text-lg font-bold tabular-nums text-brand-light">{formatDuration(elapsed)}</p>
+          ) : (
+            <button
+              type="button"
+              onClick={beginTimer}
+              className="mt-0.5 flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-sm font-bold text-slate-950"
+            >
+              <Icon name="play" size={14} /> {t('common.start')}
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -144,8 +179,8 @@ export function WorkoutSession() {
         <Icon name="check" size={20} /> {t('workout.finishWorkout')}
       </button>
 
-      {/* Fixed bottom bar: rest timer when running, otherwise a quick "start rest"
-          button — the session timer always stays visible in the header above. */}
+      {/* Fixed bottom bar: rest timer when running, otherwise a "rest" button that
+          opens the duration picker. The session timer stays in the header above. */}
       <div
         className="fixed inset-x-0 bottom-0 z-30 border-t border-white/5 bg-surface-card/95 px-3 py-2 backdrop-blur"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
@@ -154,12 +189,43 @@ export function WorkoutSession() {
           {timerOn ? (
             <RestTimerBar />
           ) : (
-            <button type="button" onClick={() => startRest(restDefault)} className="btn-ghost h-11 w-full text-sm">
-              <Icon name="timer" size={18} /> {t('workout.rest')} · {restDefault}s
+            <button type="button" onClick={() => setRestOpen(true)} className="btn-ghost h-11 w-full text-sm">
+              <Icon name="timer" size={18} /> {t('workout.rest')} · {formatDuration(restSec)}
             </button>
           )}
         </div>
       </div>
+
+      {/* Rest duration picker */}
+      <Sheet open={restOpen} onClose={() => setRestOpen(false)} title={t('workout.restTimer')}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            {REST_PRESETS.map((sec) => (
+              <button
+                key={sec}
+                type="button"
+                onClick={() => pickRest(sec)}
+                className={`btn-ghost btn-lg ${sec === restSec ? '!bg-brand !text-slate-950' : ''}`}
+              >
+                {formatDuration(sec)}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="input flex-1 text-center"
+              inputMode="numeric"
+              placeholder={t('workout.restCustom')}
+              value={customRest}
+              onChange={(e) => setCustomRest(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && applyCustomRest()}
+            />
+            <button type="button" onClick={applyCustomRest} className="btn-primary px-4">
+              {t('common.start')}
+            </button>
+          </div>
+        </div>
+      </Sheet>
 
       <VideoPlayerSheet asset={videoAsset} title={videoTitle} onClose={() => setVideoAsset(null)} />
     </div>

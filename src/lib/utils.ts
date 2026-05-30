@@ -88,6 +88,29 @@ export function sum(nums: number[]): number {
   return nums.reduce((a, b) => a + b, 0);
 }
 
+/**
+ * Parse a flexible rest-time input into seconds. Accepts:
+ *  - "M:SS"          → minutes:seconds  ("1:30" → 90, "1.5:30" → 120)
+ *  - decimal minutes → "1.5"            → 90
+ *  - plain seconds   → "90"             → 90
+ * Returns null when the input can't be parsed.
+ */
+export function parseRestInput(raw: string): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  if (s.includes(':')) {
+    const [mPart, sPart = '0'] = s.split(':');
+    const mins = Number(mPart);
+    const secs = Number(sPart);
+    if (Number.isNaN(mins) || Number.isNaN(secs)) return null;
+    return Math.max(0, Math.round(mins * 60 + secs));
+  }
+  const n = Number(s);
+  if (Number.isNaN(n)) return null;
+  // A decimal value is interpreted as minutes (1.5 → 90s); an integer as seconds.
+  return Math.max(0, Math.round(s.includes('.') ? n * 60 : n));
+}
+
 export function round(n: number, dp = 0): number {
   const f = 10 ** dp;
   return Math.round(n * f) / f;

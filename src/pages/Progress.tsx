@@ -93,14 +93,14 @@ export function Progress() {
       </div>
 
       <ChartCard title={t('progress.bodyWeight')}>
-        {weightData.length > 1 ? (
+        {weightData.length >= 1 ? (
           <ResponsiveContainer>
             <LineChart data={weightData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid stroke="#1e293b" />
               <XAxis dataKey="date" {...AXIS} />
-              <YAxis {...AXIS} domain={['dataMin - 1', 'dataMax + 1']} />
+              <YAxis {...AXIS} domain={['dataMin - 1', 'dataMax + 1']} width={32} allowDecimals={false} />
               <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12 }} />
-              <Line type="monotone" dataKey="kg" stroke="#22c55e" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="kg" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         ) : (
@@ -125,14 +125,14 @@ export function Progress() {
           </select>
         </div>
         <div className="h-44 w-full">
-          {exerciseData.length > 1 ? (
+          {exerciseData.length >= 1 ? (
             <ResponsiveContainer>
               <LineChart data={exerciseData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="#1e293b" />
                 <XAxis dataKey="date" {...AXIS} />
-                <YAxis {...AXIS} />
+                <YAxis {...AXIS} width={32} allowDecimals={false} />
                 <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12 }} />
-                <Line type="monotone" dataKey="kg" stroke="#38bdf8" strokeWidth={2} />
+                <Line type="monotone" dataKey="kg" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -146,21 +146,21 @@ export function Progress() {
           <BarChart data={weeklyData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid stroke="#1e293b" />
             <XAxis dataKey="week" {...AXIS} />
-            <YAxis {...AXIS} allowDecimals={false} />
+            <YAxis {...AXIS} width={28} allowDecimals={false} />
             <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12 }} />
-            <Bar dataKey="workouts" fill="#22c55e" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="workouts" fill="#22c55e" radius={[4, 4, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
 
       <ChartCard title={t('progress.stepsCardio')}>
         <ResponsiveContainer>
-          <BarChart data={stepsData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
+          <BarChart data={stepsData} margin={{ top: 5, right: 8, left: -4, bottom: 0 }}>
             <CartesianGrid stroke="#1e293b" />
             <XAxis dataKey="date" {...AXIS} interval={2} />
-            <YAxis {...AXIS} />
+            <YAxis {...AXIS} width={36} tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : `${v}`)} />
             <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 12 }} />
-            <Bar dataKey="steps" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="steps" fill="#38bdf8" radius={[4, 4, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>

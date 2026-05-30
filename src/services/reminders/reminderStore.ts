@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Reminder, ReminderKind } from '@/types';
 import { getDataSource } from '@/data/dataSource';
+import { recordDeletion } from '@/data/sync/tombstones';
 import { today, uid } from '@/lib/utils';
 import { useSettings } from '@/stores/settingsStore';
 
@@ -139,6 +140,7 @@ export const useReminders = create<ReminderState>((set, get) => ({
 
   async remove(id) {
     await getDataSource().reminders.remove(id);
+    await recordDeletion('reminders', id);
     set({ reminders: get().reminders.filter((r) => r.id !== id) });
     void scheduleTriggers(get().reminders);
   },

@@ -10,6 +10,7 @@ import { getDataSource } from '@/data/dataSource';
 import { debounce, today } from '@/lib/utils';
 import { notifyHabitChange } from './habitStore';
 import { useDay } from './dayStore';
+import { recordDeletion } from '@/data/sync/tombstones';
 
 /** Last performed weight×reps for an exercise, for the "previous" ghost column. */
 export interface PrevPerf {
@@ -26,6 +27,7 @@ interface WorkoutState {
   load: () => Promise<void>;
   loadDay: (date: string) => void;
   startSession: (dayId: string) => Promise<void>;
+  beginTimer: () => void;
   resumeActive: () => WorkoutLog | null;
   discardActive: () => Promise<void>;
   updateSet: (exerciseId: string, setIndex: number, patch: Partial<SetLog>) => void;
@@ -67,7 +69,7 @@ function buildSession(plan: WorkoutPlan, day: WorkoutDay, date: string): Workout
     id: date,
     date,
     dayId: day.id,
-    startedAt: Date.now(),
+    startedAt: null, // not timing yet — the user taps "Start" to begin the timer
     endedAt: null,
     durationSec: 0,
     exercises,
@@ -121,6 +123,14 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     await getDataSource().workoutLogs.put(session);
   },
 
+  beginTimer() {
+    const { active } = get();
+    if (!active || active.startedAt || active.finished) return;
+    const next = { ...active, startedAt: Date.now(), updatedAt: Date.now(), dirty: true };
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
+    void getDataSource().workoutLogs.put(next);
+  },
+
   resumeActive() {
     return get().active;
   },
@@ -129,6 +139,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     const { active } = get();
     if (!active) return;
     await getDataSource().workoutLogs.remove(active.id);
+    await recordDeletion('workoutLogs', active.id);
     set({ active: null, logs: get().logs.filter((l) => l.id !== active.id) });
   },
 
@@ -205,10 +216,16 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     const { active, logs } = get();
     if (!active) return;
     const endedAt = Date.now();
+    // Compute duration only for a live, freshly-run session. Editing an already
+    // finished workout (or one that was never timed) keeps its existing value.
+    const durationSec =
+      active.startedAt && !active.finished
+        ? Math.round((endedAt - active.startedAt) / 1000)
+        : active.durationSec;
     const finished: WorkoutLog = {
       ...active,
-      endedAt,
-      durationSec: Math.round((endedAt - active.startedAt) / 1000),
+      endedAt: active.endedAt ?? endedAt,
+      durationSec,
       finished: true,
       updatedAt: endedAt,
       dirty: true,

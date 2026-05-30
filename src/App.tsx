@@ -11,6 +11,7 @@ import { useReminders } from '@/services/reminders/reminderStore';
 import { useCloud } from '@/services/auth/cloudStore';
 import { useDay } from '@/stores/dayStore';
 import { AppShell } from '@/components/AppShell';
+import { DialogHost } from '@/components/DialogHost';
 import { Splash } from '@/components/Splash';
 import { Home } from '@/pages/Home';
 import { Workout } from '@/pages/Workout';
@@ -63,6 +64,8 @@ export function App() {
   if (!ready) return <Splash />;
 
   return (
+    <>
+    <DialogHost />
     <Routes>
       <Route path="/" element={<AppShell showDayNav><Home /></AppShell>} />
       <Route path="/workout" element={<AppShell showDayNav><Workout /></AppShell>} />
@@ -76,5 +79,6 @@ export function App() {
       <Route path="/settings/import" element={<AppShell><ImportData /></AppShell>} />
       <Route path="*" element={<AppShell><Home /></AppShell>} />
     </Routes>
+    </>
   );
 }
