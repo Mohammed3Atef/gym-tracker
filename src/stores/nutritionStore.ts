@@ -15,6 +15,16 @@ interface NutritionState {
   setCreatine: (taken: boolean) => Promise<void>;
   addCustomFood: (food: FoodItem) => Promise<void>;
   removeCustomFood: (id: string) => Promise<void>;
+  /** Replace a planned item for this day (original kept, shown struck-through). */
+  replaceItem: (originalId: string, food: FoodItem) => Promise<void>;
+  /** Remove a planned item for this day. */
+  removeItem: (originalId: string) => Promise<void>;
+  /** Undo a replace/remove and restore the original item for this day. */
+  resetItem: (originalId: string) => Promise<void>;
+  /** Add an extra food to a planned meal for this day. */
+  addMealItem: (mealId: string, food: FoodItem) => Promise<void>;
+  /** Remove an added extra food from a meal. */
+  removeMealItem: (mealId: string, foodId: string) => Promise<void>;
 }
 
 /**
@@ -25,23 +35,29 @@ interface NutritionState {
 export function computeConsumed(plan: MealPlan | null, log: NutritionLog | null): Macros {
   const acc: Macros = { calories: 0, protein: 0, carbs: 0, fats: 0 };
   if (!log) return acc;
-  if (plan) {
-    for (const meal of plan.meals) {
-      if (!log.mealsEaten[meal.id]) continue;
-      for (const item of meal.items) {
-        acc.calories += item.calories;
-        acc.protein += item.protein;
-        acc.carbs += item.carbs;
-        acc.fats += item.fats;
-      }
-    }
-  }
-  for (const f of log.customFoods) {
+  const overrides = log.itemOverrides ?? {};
+  const extras = log.extraItems ?? {};
+  const addMacros = (f: FoodItem) => {
     acc.calories += f.calories;
     acc.protein += f.protein;
     acc.carbs += f.carbs;
     acc.fats += f.fats;
+  };
+  if (plan) {
+    for (const meal of plan.meals) {
+      if (!log.mealsEaten[meal.id]) continue;
+      for (const item of meal.items) {
+        if (item.id in overrides) {
+          const ov = overrides[item.id];
+          if (ov) addMacros(ov); // replacement (null = removed → skip)
+        } else {
+          addMacros(item); // original
+        }
+      }
+      for (const extra of extras[meal.id] ?? []) addMacros(extra);
+    }
   }
+  for (const f of log.customFoods) addMacros(f);
   return acc;
 }
 
@@ -52,10 +68,24 @@ function emptyLog(date: string): NutritionLog {
     mealsEaten: {},
     supplementsTaken: {},
     customFoods: [],
+    itemOverrides: {},
+    extraItems: {},
     waterMl: 0,
     creatineTaken: false,
     updatedAt: Date.now(),
     dirty: true,
+  };
+}
+
+/** Ensure new fields exist on logs created before they were added. */
+function normalize(log: NutritionLog): NutritionLog {
+  return {
+    ...log,
+    customFoods: log.customFoods ?? [],
+    itemOverrides: log.itemOverrides ?? {},
+    extraItems: log.extraItems ?? {},
+    supplementsTaken: log.supplementsTaken ?? {},
+    mealsEaten: log.mealsEaten ?? {},
   };
 }
 
@@ -70,7 +100,7 @@ export const useNutrition = create<NutritionState>((set, get) => ({
       ds.mealPlans.getAll(),
       ds.nutritionLogs.get(date),
     ]);
-    set({ plan: plans[0] ?? null, log: log ?? emptyLog(date), loaded: true });
+    set({ plan: plans[0] ?? null, log: log ? normalize(log) : emptyLog(date), loaded: true });
   },
 
   async toggleMeal(mealId) {
@@ -127,9 +157,13 @@ export const useNutrition = create<NutritionState>((set, get) => ({
   async addCustomFood(food) {
     const cur = get().log;
     if (!cur) return;
+    // Upsert by id so the same call adds OR edits an existing custom food.
+    const exists = cur.customFoods.some((f) => f.id === food.id);
     const next: NutritionLog = {
       ...cur,
-      customFoods: [...cur.customFoods, food],
+      customFoods: exists
+        ? cur.customFoods.map((f) => (f.id === food.id ? food : f))
+        : [...cur.customFoods, food],
       updatedAt: Date.now(),
       dirty: true,
     };
@@ -148,5 +182,75 @@ export const useNutrition = create<NutritionState>((set, get) => ({
     };
     set({ log: next });
     await getDataSource().nutritionLogs.put(next);
+  },
+
+  async replaceItem(originalId, food) {
+    const cur = get().log;
+    if (!cur) return;
+    const next: NutritionLog = {
+      ...cur,
+      itemOverrides: { ...cur.itemOverrides, [originalId]: food },
+      updatedAt: Date.now(),
+      dirty: true,
+    };
+    set({ log: next });
+    await getDataSource().nutritionLogs.put(next);
+    notifyHabitChange();
+  },
+
+  async removeItem(originalId) {
+    const cur = get().log;
+    if (!cur) return;
+    const next: NutritionLog = {
+      ...cur,
+      itemOverrides: { ...cur.itemOverrides, [originalId]: null },
+      updatedAt: Date.now(),
+      dirty: true,
+    };
+    set({ log: next });
+    await getDataSource().nutritionLogs.put(next);
+    notifyHabitChange();
+  },
+
+  async resetItem(originalId) {
+    const cur = get().log;
+    if (!cur) return;
+    const overrides = { ...cur.itemOverrides };
+    delete overrides[originalId];
+    const next: NutritionLog = { ...cur, itemOverrides: overrides, updatedAt: Date.now(), dirty: true };
+    set({ log: next });
+    await getDataSource().nutritionLogs.put(next);
+    notifyHabitChange();
+  },
+
+  async addMealItem(mealId, food) {
+    const cur = get().log;
+    if (!cur) return;
+    const list = cur.extraItems[mealId] ?? [];
+    const exists = list.some((f) => f.id === food.id);
+    const nextList = exists ? list.map((f) => (f.id === food.id ? food : f)) : [...list, food];
+    const next: NutritionLog = {
+      ...cur,
+      extraItems: { ...cur.extraItems, [mealId]: nextList },
+      updatedAt: Date.now(),
+      dirty: true,
+    };
+    set({ log: next });
+    await getDataSource().nutritionLogs.put(next);
+    notifyHabitChange();
+  },
+
+  async removeMealItem(mealId, foodId) {
+    const cur = get().log;
+    if (!cur) return;
+    const next: NutritionLog = {
+      ...cur,
+      extraItems: { ...cur.extraItems, [mealId]: (cur.extraItems[mealId] ?? []).filter((f) => f.id !== foodId) },
+      updatedAt: Date.now(),
+      dirty: true,
+    };
+    set({ log: next });
+    await getDataSource().nutritionLogs.put(next);
+    notifyHabitChange();
   },
 }));

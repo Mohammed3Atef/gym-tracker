@@ -16,7 +16,6 @@ export function Cardio() {
   const { t } = useTranslation();
   const cardioLogs = useCardio((s) => s.cardioLogs);
   const addCardio = useCardio((s) => s.addCardio);
-  const addSteps = useCardio((s) => s.addSteps);
   const removeCardio = useCardio((s) => s.removeCardio);
   const stepsFor = useCardio((s) => s.stepsFor);
   const cardioSecFor = useCardio((s) => s.cardioSecFor);
@@ -25,60 +24,80 @@ export function Cardio() {
   const [running, setRunning] = useState<number | null>(null);
   const [type, setType] = useState<CardioType>('treadmill');
   const [logOpen, setLogOpen] = useState(false);
-  const [stepsOpen, setStepsOpen] = useState(false);
-  const [steps, setSteps] = useState('');
-  const [form, setForm] = useState({ minutes: '', distance: '', calories: '' });
+  const [form, setForm] = useState({ minutes: '', steps: '', distance: '', calories: '' });
 
   const elapsed = useElapsed(running);
   useWakeLock(running != null);
 
-  const stopAndSave = async () => {
+  // Stopping the live timer hands the elapsed minutes to the unified log form so
+  // you can add steps/distance and save it all as one entry.
+  const stopAndSave = () => {
     if (running == null) return;
-    const durationSec = Math.floor((Date.now() - running) / 1000);
+    const mins = Math.max(1, Math.round((Date.now() - running) / 60000));
     setRunning(null);
-    await addCardio({ type, durationSec });
+    setForm({ minutes: String(mins), steps: '', distance: '', calories: '' });
+    setLogOpen(true);
   };
 
+  // One entry capturing what you actually did, e.g. "10k steps in 40 min".
   const saveManual = async () => {
-    const durationSec = (Number(form.minutes) || 0) * 60;
     await addCardio({
       type,
-      durationSec,
+      durationSec: (Number(form.minutes) || 0) * 60,
+      steps: form.steps ? Number(form.steps) : null,
       distanceKm: form.distance ? Number(form.distance) : null,
       caloriesBurned: form.calories ? Number(form.calories) : null,
     });
-    setForm({ minutes: '', distance: '', calories: '' });
+    setForm({ minutes: '', steps: '', distance: '', calories: '' });
     setLogOpen(false);
-  };
-
-  const saveSteps = async () => {
-    if (steps) await addSteps(Number(steps));
-    setSteps('');
-    setStepsOpen(false);
   };
 
   const selected = useDay((s) => s.selected);
   const todaySteps = stepsFor(selected);
   const todayCardioMin = Math.round(cardioSecFor(selected) / 60);
+  const activityMet =
+    todaySteps >= (targets?.steps ?? Infinity) || todayCardioMin >= (targets?.cardioMinutes ?? Infinity);
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">{t('cardio.title')}</h1>
 
-      {/* Today summary */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="card flex items-center gap-3">
-          <Icon name="steps" size={28} className="text-accent" />
-          <div>
-            <p className="text-xl font-bold">{todaySteps.toLocaleString()}</p>
-            <p className="text-xs text-slate-400">{t('cardio.steps')} / {targets?.steps.toLocaleString()}</p>
+      {/* Combined daily activity goal — done when EITHER target is met. */}
+      <div className={`card ${activityMet ? 'ring-1 ring-brand/40' : ''}`}>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Icon name="activity" size={22} className="text-brand" />
+            <div>
+              <p className="font-semibold">{t('cardio.goal')}</p>
+              <p className="text-xs text-slate-400">{t('cardio.goalHint')}</p>
+            </div>
           </div>
+          {activityMet && (
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-slate-950">
+              <Icon name="check" size={16} />
+            </span>
+          )}
         </div>
-        <div className="card flex items-center gap-3">
-          <Icon name="activity" size={28} className="text-brand" />
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-xl font-bold">{todayCardioMin} {t('common.min')}</p>
-            <p className="text-xs text-slate-400">{t('cardio.title')} / {targets?.cardioMinutes}</p>
+            <p className="text-xl font-bold">
+              {todaySteps.toLocaleString()}
+              <span className="text-sm font-normal text-slate-400"> / {targets?.steps.toLocaleString()}</span>
+            </p>
+            <p className="mb-1 text-xs text-slate-400">{t('cardio.steps')}</p>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">
+              <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (todaySteps / (targets?.steps || 1)) * 100)}%` }} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xl font-bold">
+              {todayCardioMin}
+              <span className="text-sm font-normal text-slate-400"> / {targets?.cardioMinutes} {t('common.min')}</span>
+            </p>
+            <p className="mb-1 text-xs text-slate-400">{t('cardio.minutes')}</p>
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">
+              <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, (todayCardioMin / (targets?.cardioMinutes || 1)) * 100)}%` }} />
+            </div>
           </div>
         </div>
       </div>
@@ -111,14 +130,9 @@ export function Cardio() {
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setLogOpen(true)} className="btn-ghost flex-1">
-          <Icon name="plus" size={18} /> {t('cardio.logCardio')}
-        </button>
-        <button type="button" onClick={() => setStepsOpen(true)} className="btn-ghost flex-1">
-          <Icon name="steps" size={18} /> {t('cardio.addSteps')}
-        </button>
-      </div>
+      <button type="button" onClick={() => setLogOpen(true)} className="btn-ghost btn-lg w-full">
+        <Icon name="plus" size={18} /> {t('cardio.logActivity')}
+      </button>
 
       {/* History */}
       <div>
@@ -144,7 +158,7 @@ export function Cardio() {
         </ul>
       </div>
 
-      <Sheet open={logOpen} onClose={() => setLogOpen(false)} title={t('cardio.logCardio')}>
+      <Sheet open={logOpen} onClose={() => setLogOpen(false)} title={t('cardio.logActivity')}>
         <div className="space-y-3">
           <div className="flex flex-wrap gap-1.5">
             {TYPES.map((ty) => (
@@ -153,17 +167,25 @@ export function Cardio() {
               </button>
             ))}
           </div>
-          <input className="input" inputMode="numeric" placeholder={`${t('cardio.duration')} (${t('common.min')})`} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
-          <input className="input" inputMode="decimal" placeholder={`${t('cardio.distance')} (km)`} value={form.distance} onChange={(e) => setForm({ ...form, distance: e.target.value })} />
-          <input className="input" inputMode="numeric" placeholder={t('cardio.calories')} value={form.calories} onChange={(e) => setForm({ ...form, calories: e.target.value })} />
-          <button type="button" onClick={() => void saveManual()} className="btn-primary w-full">{t('common.save')}</button>
-        </div>
-      </Sheet>
-
-      <Sheet open={stepsOpen} onClose={() => setStepsOpen(false)} title={t('cardio.addSteps')}>
-        <div className="space-y-3">
-          <input className="input text-center text-lg" inputMode="numeric" placeholder="0" value={steps} onChange={(e) => setSteps(e.target.value)} />
-          <button type="button" onClick={() => void saveSteps()} className="btn-primary w-full">{t('common.add')}</button>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label">{t('cardio.steps')}</label>
+              <input className="input" inputMode="numeric" placeholder="10000" value={form.steps} onChange={(e) => setForm({ ...form, steps: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">{t('cardio.duration')} ({t('common.min')})</label>
+              <input className="input" inputMode="numeric" placeholder="40" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">{t('cardio.distance')} (km)</label>
+              <input className="input" inputMode="decimal" placeholder="0" value={form.distance} onChange={(e) => setForm({ ...form, distance: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">{t('cardio.calories')}</label>
+              <input className="input" inputMode="numeric" placeholder="0" value={form.calories} onChange={(e) => setForm({ ...form, calories: e.target.value })} />
+            </div>
+          </div>
+          <button type="button" onClick={() => void saveManual()} className="btn-primary btn-lg w-full">{t('common.save')}</button>
         </div>
       </Sheet>
     </div>

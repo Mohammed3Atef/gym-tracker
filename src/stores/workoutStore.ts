@@ -28,6 +28,7 @@ interface WorkoutState {
   loadDay: (date: string) => void;
   startSession: (dayId: string) => Promise<void>;
   beginTimer: () => void;
+  discardDraft: () => void;
   resumeActive: () => WorkoutLog | null;
   discardActive: () => Promise<void>;
   updateSet: (exerciseId: string, setIndex: number, patch: Partial<SetLog>) => void;
@@ -115,19 +116,20 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     if (!day) return;
     const date = useDay.getState().selected;
     const existing = logs.find((l) => l.id === date);
-    // Same workout for that day → continue/edit it; otherwise start fresh
-    // (replacing any other workout logged for that date).
+    // Existing same-day workout → open it (resume/edit). Otherwise open a DRAFT
+    // that is NOT saved yet — nothing is recorded until the user starts (presses
+    // Start or checks off a set), so they can browse and back out freely.
     const session = existing && existing.dayId === dayId ? existing : buildSession(plan, day, date);
-    const others = logs.filter((l) => l.id !== date);
-    set({ active: session, logs: [session, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
-    await getDataSource().workoutLogs.put(session);
+    set({ active: session });
   },
 
+  /** Persist the draft + start the timer (first real "record" action). */
   beginTimer() {
-    const { active } = get();
+    const { active, logs } = get();
     if (!active || active.startedAt || active.finished) return;
     const next = { ...active, startedAt: Date.now(), updatedAt: Date.now(), dirty: true };
-    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
+    const others = logs.filter((l) => l.id !== next.id);
+    set({ active: next, logs: [next, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
     void getDataSource().workoutLogs.put(next);
   },
 
@@ -135,11 +137,19 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     return get().active;
   },
 
+  /** Drop an unstarted, unsaved draft (e.g. user backs out without starting). */
+  discardDraft() {
+    const { active } = get();
+    if (active && !active.startedAt && !active.finished) set({ active: null });
+  },
+
   async discardActive() {
     const { active } = get();
     if (!active) return;
-    await getDataSource().workoutLogs.remove(active.id);
-    await recordDeletion('workoutLogs', active.id);
+    if (active.startedAt || active.finished) {
+      await getDataSource().workoutLogs.remove(active.id);
+      await recordDeletion('workoutLogs', active.id);
+    }
     set({ active: null, logs: get().logs.filter((l) => l.id !== active.id) });
   },
 
@@ -156,11 +166,11 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     );
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
     set({ active: next });
-    persist(next);
+    if (next.startedAt) persist(next); // edits before "Start" stay in memory
   },
 
   toggleSetDone(exerciseId, setIndex) {
-    const { active } = get();
+    const { active, logs } = get();
     if (!active) return;
     const exercises = active.exercises.map((ex) => {
       if (ex.exerciseId !== exerciseId) return ex;
@@ -169,8 +179,15 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       );
       return { ...ex, sets, done: sets.every((s) => s.done) };
     });
-    const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
-    set({ active: next });
+    let next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
+    // Checking off a set is a "record" action — start (and persist) if needed.
+    if (!next.startedAt && !next.finished) {
+      next = { ...next, startedAt: Date.now() };
+      const others = logs.filter((l) => l.id !== next.id);
+      set({ active: next, logs: [next, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
+    } else {
+      set({ active: next });
+    }
     persist(next);
   },
 
@@ -193,7 +210,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
     set({ active: next });
-    persist(next);
+    if (next.startedAt) persist(next);
   },
 
   removeSet(exerciseId, setIndex) {
@@ -209,7 +226,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
     set({ active: next });
-    persist(next);
+    if (next.startedAt) persist(next);
   },
 
   async finishSession() {

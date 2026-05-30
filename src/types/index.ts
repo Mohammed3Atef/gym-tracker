@@ -166,6 +166,14 @@ export interface NutritionLog {
   /** supplementId -> taken? */
   supplementsTaken: Record<string, boolean>;
   customFoods: FoodItem[];
+  /**
+   * Per-day swaps of a PLANNED food item (keyed by the original item id):
+   * a FoodItem = replacement for that day; null = removed for that day.
+   * The original stays in the plan and is shown struck-through.
+   */
+  itemOverrides: Record<string, FoodItem | null>;
+  /** Extra foods added to a planned meal for that day (keyed by mealId). */
+  extraItems: Record<string, FoodItem[]>;
   waterMl: number;
   creatineTaken: boolean;
   updatedAt: number;

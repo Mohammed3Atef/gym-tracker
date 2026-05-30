@@ -25,7 +25,8 @@ type IconName =
   | 'edit'
   | 'chevron'
   | 'pill'
-  | 'scale';
+  | 'scale'
+  | 'info';
 
 const PATHS: Record<IconName, string> = {
   home: 'M3 11.5 12 4l9 7.5M5 10v10h14V10',
@@ -53,6 +54,7 @@ const PATHS: Record<IconName, string> = {
   chevron: 'M9 6l6 6-6 6',
   pill: 'M10.5 3.5a4 4 0 0 1 6 6l-7 7a4 4 0 0 1-6-6zM8 8l8 8',
   scale: 'M12 3a3 3 0 0 0-3 3h6a3 3 0 0 0-3-3zM5 6h14l2 14H3z',
+  info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 11v5M12 7.5h.01',
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

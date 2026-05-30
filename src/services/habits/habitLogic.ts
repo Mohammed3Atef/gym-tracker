@@ -64,11 +64,13 @@ export function buildChecklist(input: DayInputs): DailyChecklist {
   // Creatine.
   setItem('creatine', !!nutritionLog?.creatineTaken);
 
-  // Steps + cardio aggregated from cardio logs of the day.
+  // Cardio + steps are ONE goal (the 40-min treadmill is the 10k steps): the
+  // item is done when EITHER the steps target OR the cardio-minutes target is met.
   const totalSteps = cardioForDay.reduce((a, c) => a + (c.steps ?? 0), 0);
   const totalCardioSec = cardioForDay.reduce((a, c) => a + c.durationSec, 0);
-  setItem('steps', totalSteps >= targets.steps);
-  setItem('cardio', totalCardioSec >= targets.cardioMinutes * 60);
+  const stepsMet = totalSteps >= targets.steps;
+  const cardioMet = totalCardioSec >= targets.cardioMinutes * 60;
+  setItem('cardio', stepsMet || cardioMet);
 
   const keys = Object.keys(items);
   const doneCount = keys.filter((k) => items[k].done).length;

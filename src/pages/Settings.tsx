@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { ActivityLevel, Goal, Locale, ReminderKind } from '@/types';
@@ -13,6 +13,7 @@ import { useHabits } from '@/stores/habitStore';
 import { usePhotos } from '@/stores/photoStore';
 import { clearAllLocalData, clearDayData } from '@/data/reset';
 import { confirmDialog, alertDialog } from '@/stores/dialogStore';
+import { ensurePersistentStorage, isStoragePersisted } from '@/lib/storage';
 import { shortDate } from '@/lib/utils';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
@@ -55,6 +56,10 @@ export function Settings() {
   const [creds, setCreds] = useState({ email: '', password: '', create: false });
   const [newRem, setNewRem] = useState<{ kind: ReminderKind; time: string }>({ kind: 'meal', time: '09:00' });
   const triggersAvailable = 'Notification' in window && 'showTrigger' in Notification.prototype;
+  const [persisted, setPersisted] = useState(true);
+  useEffect(() => {
+    void ensurePersistentStorage().then(() => isStoragePersisted().then(setPersisted));
+  }, []);
 
   const selectedDay = useDay((s) => s.selected);
 
@@ -286,6 +291,10 @@ export function Settings() {
       {/* Data — danger zone */}
       <section className="card space-y-2">
         <h2 className="mb-1 font-bold text-danger">{t('settings.data')}</h2>
+        <p className={`flex items-center gap-1.5 text-xs ${persisted ? 'text-brand' : 'text-warn'}`}>
+          <Icon name={persisted ? 'check' : 'flame'} size={14} />
+          {persisted ? t('settings.storagePersisted') : t('settings.storageAtRisk')}
+        </p>
         <button type="button" onClick={() => void clearDay()} className="btn-ghost w-full justify-between text-sm">
           <span className="flex items-center gap-2"><Icon name="close" size={16} /> {t('settings.clearDay')}</span>
           <span className="text-xs text-slate-400">{shortDate(selectedDay, settings.locale)}</span>

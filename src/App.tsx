@@ -10,6 +10,7 @@ import { useHabits } from '@/stores/habitStore';
 import { useReminders } from '@/services/reminders/reminderStore';
 import { useCloud } from '@/services/auth/cloudStore';
 import { useDay } from '@/stores/dayStore';
+import { setupPersistentStorage } from '@/lib/storage';
 import { AppShell } from '@/components/AppShell';
 import { DialogHost } from '@/components/DialogHost';
 import { Splash } from '@/components/Splash';
@@ -51,8 +52,9 @@ export function App() {
       await useReminders.getState().load();
       useReminders.getState().start();
       useCloud.getState().init();
-      // Ask the OS not to evict our IndexedDB data.
-      if (navigator.storage?.persist) void navigator.storage.persist();
+      // Ask the OS not to evict our IndexedDB/CacheStorage data (login, videos,
+      // photos). Retries on first user gesture if the browser defers the grant.
+      setupPersistentStorage();
       if (mounted) setReady(true);
     })();
     return () => {

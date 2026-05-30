@@ -76,7 +76,8 @@
     "tempo": "Tempo",
     "watchVideo": "Watch video",
     "confirmFinish": "Finish and save this workout?",
-    "elapsed": "Elapsed"
+    "elapsed": "Elapsed",
+    "notStarted": "Not started — press Start"
   },
   "nutrition": {
     "title": "Nutrition",
@@ -90,7 +91,11 @@
     "supplements": "Supplements",
     "eaten": "Eaten",
     "markEaten": "Mark eaten",
-    "addFood": "Add custom food",
+    "addFood": "Add food",
+    "quantity": "Quantity",
+    "replace": "Replace",
+    "reset": "Reset",
+    "removed": "Removed today",
     "addWater": "Add water",
     "notes": "Notes",
     "beverages": "Beverages",
@@ -100,6 +105,10 @@
   },
   "cardio": {
     "title": "Cardio & Steps",
+    "minutes": "Cardio",
+    "goal": "Daily activity goal",
+    "goalHint": "10k steps or 40 min cardio",
+    "logActivity": "Log activity",
     "logCardio": "Log cardio",
     "type": "Type",
     "duration": "Duration",
@@ -172,6 +181,8 @@
     "resetAll": "Reset all data (start fresh)",
     "resetConfirm": "This erases ALL local data and restores the default plan. This cannot be undone. Continue?",
     "resetOffline": "You're offline — your cloud backup won't be cleared and may restore data when you reconnect. Connect to the internet for a full reset.",
+    "storagePersisted": "Offline storage is protected — your data, videos & photos persist.",
+    "storageAtRisk": "Install the app (Add to Home Screen) so your data isn't cleared when closed.",
     "enableNotifications": "Enable notifications",
     "goals": {
       "muscle_gain": "Muscle gain",
@@ -215,6 +226,12 @@
     "help": "Paste exported sheet rows or the video-links JSON, preview, then import.",
     "success": "Imported successfully",
     "invalid": "Could not parse the input"
+  },
+  "guide": {
+    "title": "Training guide",
+    "general": "General information",
+    "rpeRir": "RPE / RIR rating",
+    "meaning": "Meaning"
   },
   "reminder": { "dueNow": "Reminder: {{label}}" },
   "reminderKinds": {

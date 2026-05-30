@@ -30,6 +30,7 @@ export function WorkoutSession() {
   const addSet = useWorkout((s) => s.addSet);
   const removeSet = useWorkout((s) => s.removeSet);
   const beginTimer = useWorkout((s) => s.beginTimer);
+  const discardDraft = useWorkout((s) => s.discardDraft);
   const finishSession = useWorkout((s) => s.finishSession);
   const previousFor = useWorkout((s) => s.previousFor);
 
@@ -81,6 +82,14 @@ export function WorkoutSession() {
   const day = plan.days.find((d) => d.id === active.dayId);
   const totalSets = active.exercises.reduce((a, e) => a + e.sets.length, 0);
   const doneSets = active.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
+  // The session has begun (timer started or already finished) — until then
+  // nothing is recorded and "Finish" is hidden.
+  const recording = !!active.startedAt || active.finished;
+
+  const goBack = () => {
+    discardDraft(); // no-op if already started/saved
+    navigate('/workout');
+  };
 
   const handleToggle = (exerciseId: string, setIndex: number) => {
     const ex = active.exercises.find((e) => e.exerciseId === exerciseId);
@@ -127,30 +136,34 @@ export function WorkoutSession() {
     <div className="space-y-3 pb-24">
       {/* Sticky session header */}
       <header className="sticky top-0 z-30 -mx-4 mb-1 flex items-center justify-between gap-2 bg-surface/95 px-4 py-2 backdrop-blur">
-        <button type="button" onClick={() => navigate('/workout')} className="icon-btn h-10 w-10" aria-label="back">
+        <button type="button" onClick={goBack} className="icon-btn h-10 w-10" aria-label="back">
           <Icon name="chevron" size={18} className="rotate-180" />
         </button>
         <div className="flex flex-col items-center">
           <p className="text-xs text-slate-400">{day?.title} · {doneSets}/{totalSets} {t('common.sets')}</p>
-          {active.finished || active.startedAt ? (
+          {recording ? (
             <p className="font-mono text-lg font-bold tabular-nums text-brand-light">{formatDuration(elapsed)}</p>
           ) : (
-            <button
-              type="button"
-              onClick={beginTimer}
-              className="mt-0.5 flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-sm font-bold text-slate-950"
-            >
-              <Icon name="play" size={14} /> {t('common.start')}
-            </button>
+            <span className="text-[10px] text-slate-500">{t('workout.notStarted')}</span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => void handleFinish()}
-          className="flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-slate-950 transition-transform active:scale-95"
-        >
-          {t('common.finish')}
-        </button>
+        {recording ? (
+          <button
+            type="button"
+            onClick={() => void handleFinish()}
+            className="flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-slate-950 transition-transform active:scale-95"
+          >
+            {t('common.finish')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={beginTimer}
+            className="flex h-10 items-center gap-1 rounded-xl bg-brand px-4 text-sm font-bold text-slate-950 transition-transform active:scale-95"
+          >
+            <Icon name="play" size={16} /> {t('common.start')}
+          </button>
+        )}
       </header>
 
       <div className="space-y-3">
@@ -175,9 +188,15 @@ export function WorkoutSession() {
         })}
       </div>
 
-      <button type="button" onClick={() => void handleFinish()} className="btn-primary btn-lg mt-2 w-full">
-        <Icon name="check" size={20} /> {t('workout.finishWorkout')}
-      </button>
+      {recording ? (
+        <button type="button" onClick={() => void handleFinish()} className="btn-primary btn-lg mt-2 w-full">
+          <Icon name="check" size={20} /> {t('workout.finishWorkout')}
+        </button>
+      ) : (
+        <button type="button" onClick={beginTimer} className="btn-primary btn-lg mt-2 w-full">
+          <Icon name="play" size={20} /> {t('common.start')}
+        </button>
+      )}
 
       {/* Fixed bottom bar: rest timer when running, otherwise a "rest" button that
           opens the duration picker. The session timer stays in the header above. */}
