@@ -14,7 +14,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      injectRegister: false, // registered manually in src/main.tsx (with update polling)
       includeAssets: ['icons/apple-touch-icon.png', 'favicon.svg'],
       manifest: {
         name: 'Gym Tracker',
@@ -41,6 +41,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
+        // Take control of open pages immediately and drop old precaches so a new
+        // build replaces the old one without needing a reinstall.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             // Exercise videos: cache on first play (range-request aware so
