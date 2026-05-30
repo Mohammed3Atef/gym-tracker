@@ -1,0 +1,143 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { PhotoPose, ProgressPhoto } from '@/types';
+import { usePhotos } from '@/stores/photoStore';
+import { Icon } from '@/components/Icon';
+
+const POSES: PhotoPose[] = ['front', 'side', 'back'];
+
+/** Resolves a stored photo blob to an object URL and renders it. */
+function PhotoImg({ photo, className }: { photo: ProgressPhoto; className?: string }) {
+  const url = usePhotos((s) => s.url);
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let revoked: string | null = null;
+    void url(photo).then((u) => {
+      setSrc(u);
+      revoked = u;
+    });
+    return () => {
+      if (revoked) URL.revokeObjectURL(revoked);
+    };
+  }, [photo, url]);
+  if (!src) return <div className={`animate-pulse bg-surface-raised ${className}`} />;
+  return <img src={src} alt={photo.pose} className={className} />;
+}
+
+export function ProgressPhotos() {
+  const { t } = useTranslation();
+  const photos = usePhotos((s) => s.photos);
+  const load = usePhotos((s) => s.load);
+  const add = usePhotos((s) => s.add);
+  const remove = usePhotos((s) => s.remove);
+  const loaded = usePhotos((s) => s.loaded);
+
+  const [pose, setPose] = useState<PhotoPose>('front');
+  const [compare, setCompare] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!loaded) void load();
+  }, [loaded, load]);
+
+  // Group by date (newest first).
+  const byDate = useMemo(() => {
+    const map = new Map<string, ProgressPhoto[]>();
+    for (const p of photos) {
+      const arr = map.get(p.date) ?? [];
+      arr.push(p);
+      map.set(p.date, arr);
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [photos]);
+
+  const dates = byDate.map(([d]) => d);
+  const [dateA, setDateA] = useState('');
+  const [dateB, setDateB] = useState('');
+  useEffect(() => {
+    if (dates.length && !dateA) setDateA(dates[dates.length - 1]);
+    if (dates.length && !dateB) setDateB(dates[0]);
+  }, [dates, dateA, dateB]);
+
+  const photoFor = (date: string, p: PhotoPose) =>
+    photos.find((ph) => ph.date === date && ph.pose === p) ?? null;
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await add(pose, file);
+    e.target.value = '';
+  };
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">{t('progress.photos')}</h1>
+
+      {/* Capture */}
+      <div className="card">
+        <div className="mb-3 flex gap-1.5">
+          {POSES.map((p) => (
+            <button key={p} type="button" onClick={() => setPose(p)} className={`flex-1 rounded-xl py-2 text-sm ${pose === p ? 'bg-brand text-slate-950' : 'bg-surface-raised text-slate-300'}`}>
+              {t(`progress.${p}`)}
+            </button>
+          ))}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void onFile(e)} />
+        <button type="button" onClick={() => fileRef.current?.click()} className="btn-primary btn-lg w-full">
+          <Icon name="camera" size={20} /> {t('progress.addPhoto')} — {t(`progress.${pose}`)}
+        </button>
+      </div>
+
+      <button type="button" onClick={() => setCompare((v) => !v)} className="btn-ghost w-full" disabled={dates.length < 2}>
+        <Icon name="chart" size={18} /> {t('progress.compare')}
+      </button>
+
+      {/* Compare view */}
+      {compare && dates.length >= 2 && (
+        <div className="card space-y-3">
+          <div className="flex gap-2">
+            <select value={dateA} onChange={(e) => setDateA(e.target.value)} className="input h-10 flex-1 py-1 text-sm">
+              {dates.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select value={dateB} onChange={(e) => setDateB(e.target.value)} className="input h-10 flex-1 py-1 text-sm">
+              {dates.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          {POSES.map((p) => {
+            const a = photoFor(dateA, p);
+            const b = photoFor(dateB, p);
+            if (!a && !b) return null;
+            return (
+              <div key={p}>
+                <p className="mb-1 text-xs uppercase text-slate-400">{t(`progress.${p}`)}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {a ? <PhotoImg photo={a} className="aspect-[3/4] w-full rounded-xl object-cover" /> : <div className="aspect-[3/4] rounded-xl bg-surface-raised" />}
+                  {b ? <PhotoImg photo={b} className="aspect-[3/4] w-full rounded-xl object-cover" /> : <div className="aspect-[3/4] rounded-xl bg-surface-raised" />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Gallery by date */}
+      {byDate.map(([date, items]) => (
+        <div key={date} className="card">
+          <h2 className="mb-2 font-bold">{date}</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {items.map((ph) => (
+              <div key={ph.id} className="relative">
+                <PhotoImg photo={ph} className="aspect-[3/4] w-full rounded-xl object-cover" />
+                <span className="absolute bottom-1 start-1 rounded bg-black/60 px-1 text-[10px]">{t(`progress.${ph.pose}`)}</span>
+                <button type="button" onClick={() => void remove(ph.id)} className="absolute end-1 top-1 rounded-full bg-black/60 p-1 text-danger">
+                  <Icon name="close" size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {byDate.length === 0 && <p className="text-sm text-slate-500">{t('progress.noData')}</p>}
+    </div>
+  );
+}
