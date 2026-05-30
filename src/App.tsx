@@ -9,6 +9,7 @@ import { useVideos } from '@/stores/videoStore';
 import { useHabits } from '@/stores/habitStore';
 import { useReminders } from '@/services/reminders/reminderStore';
 import { useCloud } from '@/services/auth/cloudStore';
+import { useDay } from '@/stores/dayStore';
 import { AppShell } from '@/components/AppShell';
 import { Splash } from '@/components/Splash';
 import { Home } from '@/pages/Home';
@@ -24,6 +25,15 @@ import { ImportData } from '@/pages/ImportData';
 
 export function App() {
   const [ready, setReady] = useState(false);
+  const selectedDay = useDay((s) => s.selected);
+
+  // When the focused day changes, reload all day-scoped data for that date.
+  useEffect(() => {
+    if (!ready) return;
+    void useNutrition.getState().load(selectedDay);
+    void useWorkout.getState().loadDay(selectedDay);
+    void useHabits.getState().refresh(selectedDay);
+  }, [selectedDay, ready]);
 
   useEffect(() => {
     let mounted = true;
@@ -54,11 +64,11 @@ export function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<AppShell><Home /></AppShell>} />
-      <Route path="/workout" element={<AppShell><Workout /></AppShell>} />
+      <Route path="/" element={<AppShell showDayNav><Home /></AppShell>} />
+      <Route path="/workout" element={<AppShell showDayNav><Workout /></AppShell>} />
       <Route path="/workout/session" element={<AppShell hideNav><WorkoutSession /></AppShell>} />
-      <Route path="/nutrition" element={<AppShell><Nutrition /></AppShell>} />
-      <Route path="/cardio" element={<AppShell><Cardio /></AppShell>} />
+      <Route path="/nutrition" element={<AppShell showDayNav><Nutrition /></AppShell>} />
+      <Route path="/cardio" element={<AppShell showDayNav><Cardio /></AppShell>} />
       <Route path="/progress" element={<AppShell><Progress /></AppShell>} />
       <Route path="/progress/photos" element={<AppShell><ProgressPhotos /></AppShell>} />
       <Route path="/settings" element={<AppShell><Settings /></AppShell>} />

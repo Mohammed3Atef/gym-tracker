@@ -71,6 +71,7 @@
     "lastTime": "Last: {{weight}}kg × {{reps}}",
     "target": "Target",
     "notes": "Notes",
+    "tempo": "Tempo",
     "watchVideo": "Watch video",
     "confirmFinish": "Finish and save this workout?",
     "elapsed": "Elapsed"
@@ -122,6 +123,8 @@
     "stepsCardio": "Steps & cardio",
     "photos": "Progress photos",
     "addPhoto": "Add photo",
+    "gallery": "Gallery",
+    "camera": "Camera",
     "compare": "Compare",
     "front": "Front",
     "side": "Side",
@@ -149,9 +152,23 @@
     "cloud": "Cloud backup & sync",
     "signIn": "Sign in to back up",
     "signOut": "Sign out",
+    "signUp": "Sign up",
+    "syncNow": "Sync now",
+    "lastSync": "Last sync",
+    "email": "Email",
+    "password": "Password",
+    "preferences": "Preferences",
+    "synced": "Backed up & syncing",
+    "syncing": "Syncing…",
+    "notifWhileOpen": "Your browser only shows reminders while the app is open.",
     "localOnly": "Running locally. Add Firebase keys to enable cloud sync.",
     "import": "Import data",
     "videos": "Video manager",
+    "data": "Data",
+    "clearDay": "Clear this day's data",
+    "clearDayConfirm": "Delete all data logged for {{date}} (workout, food, cardio, weight, photos)?",
+    "resetAll": "Reset all data (start fresh)",
+    "resetConfirm": "This erases ALL local data and restores the default plan. This cannot be undone. Continue?",
     "enableNotifications": "Enable notifications",
     "goals": {
       "muscle_gain": "Muscle gain",
@@ -159,6 +176,13 @@
       "recomp": "Recomposition",
       "maintenance": "Maintenance",
       "strength": "Strength"
+    },
+    "activities": {
+      "sedentary": "Sedentary",
+      "light": "Light",
+      "moderate": "Moderate",
+      "active": "Active",
+      "very_active": "Very active"
     }
   },
   "video": {
@@ -189,5 +213,13 @@
     "success": "Imported successfully",
     "invalid": "Could not parse the input"
   },
-  "reminder": { "dueNow": "Reminder: {{label}}" }
+  "reminder": { "dueNow": "Reminder: {{label}}" },
+  "reminderKinds": {
+    "meal": "Meal",
+    "supplements": "Supplements",
+    "creatine": "Creatine",
+    "water": "Water",
+    "workout": "Workout",
+    "cardio": "Cardio / walk"
+  }
 }

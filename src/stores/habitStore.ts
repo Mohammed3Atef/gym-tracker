@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { DailyChecklist, Streaks } from '@/types';
 import { getDataSource } from '@/data/dataSource';
 import { today } from '@/lib/utils';
+import { useDay } from './dayStore';
 import {
   buildChecklist,
   computeStreaks,
@@ -56,7 +57,7 @@ export const useHabits = create<HabitState>((set, get) => ({
 
     await ds.dailyChecklists.put(checklist);
     set({ checklist });
-    if (date === today()) await get().refreshStreaks();
+    await get().refreshStreaks();
   },
 
   async refreshStreaks() {
@@ -110,7 +111,7 @@ export const useHabits = create<HabitState>((set, get) => ({
   },
 }));
 
-/** Convenience: refresh the habit checklist after any module mutates today. */
+/** Refresh the habit checklist for the currently-focused day after a change. */
 export function notifyHabitChange(): void {
-  void useHabits.getState().refresh();
+  void useHabits.getState().refresh(useDay.getState().selected);
 }

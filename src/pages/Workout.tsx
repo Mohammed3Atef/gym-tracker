@@ -17,6 +17,8 @@ export function Workout() {
     navigate('/workout/session');
   };
 
+  const activeDay = active ? plan.days.find((d) => d.id === active.dayId) : null;
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">{t('workout.weeklyPlan')}</h1>
@@ -27,14 +29,18 @@ export function Workout() {
           onClick={() => navigate('/workout/session')}
           className="btn-primary btn-lg w-full"
         >
-          <Icon name="play" size={20} />
-          {t('workout.resumeSession')}
+          <Icon name={active.finished ? 'edit' : 'play'} size={20} />
+          {active.finished
+            ? `${t('common.edit')} · ${activeDay?.title ?? ''}`
+            : `${t('workout.resumeSession')} · ${activeDay?.title ?? ''}`}
         </button>
       )}
 
       <ul className="space-y-3">
-        {plan.days.map((day) => (
-          <li key={day.id} className="card">
+        {plan.days.map((day) => {
+          const isActive = active?.dayId === day.id;
+          return (
+          <li key={day.id} className={`card ${isActive ? 'ring-1 ring-brand/40' : ''}`}>
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold">{day.title}</h2>
@@ -48,8 +54,8 @@ export function Workout() {
                 onClick={() => void start(day.id)}
                 className="btn-primary h-12 px-4"
               >
-                <Icon name="play" size={18} />
-                {t('common.start')}
+                <Icon name={isActive ? 'edit' : 'play'} size={18} />
+                {isActive ? t('common.edit') : t('common.start')}
               </button>
             </div>
             <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -60,7 +66,8 @@ export function Workout() {
               ))}
             </ul>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

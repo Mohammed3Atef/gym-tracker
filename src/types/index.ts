@@ -289,6 +289,8 @@ export interface Reminder {
   /** Days of week 0 (Sun) - 6 (Sat). Empty = every day. */
   repeatDays: number[];
   lastFiredDate?: DayKey;
+  updatedAt: number;
+  dirty: boolean;
 }
 
 export interface StreakValue {

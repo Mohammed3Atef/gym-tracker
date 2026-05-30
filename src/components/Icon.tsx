@@ -16,6 +16,7 @@ type IconName =
   | 'timer'
   | 'water'
   | 'camera'
+  | 'image'
   | 'download'
   | 'flame'
   | 'steps'
@@ -42,6 +43,7 @@ const PATHS: Record<IconName, string> = {
   timer: 'M12 8v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9 3h6',
   water: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z',
   camera: 'M3 8h3l2-2h8l2 2h3v12H3zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  image: 'M3 5h18v14H3zM3 16l5-5 3 3 4-4 6 6M8.5 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z',
   download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
   flame: 'M12 3c1 4-3 5-3 9a3 3 0 0 0 6 0c0-1.5-1-2.5-1-4 2 1 4 3 4 6a6 6 0 1 1-12 0c0-5 5-7 6-11z',
   steps: 'M7 4c1.5 0 2.5 1.5 2.5 4S8 16 6 16s-2-2-1.5-5S5.5 4 7 4zM16 8c1.5 0 2.5 1.5 2.5 4s-1 6-3 6-2-2-1.5-5S14.5 8 16 8z',

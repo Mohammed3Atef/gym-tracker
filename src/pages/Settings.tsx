@@ -1,10 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { ActivityLevel, Goal, Locale } from '@/types';
+import type { ActivityLevel, Goal, Locale, ReminderKind } from '@/types';
 import { useSettings } from '@/stores/settingsStore';
 import { useReminders } from '@/services/reminders/reminderStore';
 import { useCloud } from '@/services/auth/cloudStore';
+import { useDay } from '@/stores/dayStore';
+import { useNutrition } from '@/stores/nutritionStore';
+import { useCardio } from '@/stores/cardioStore';
+import { useWorkout } from '@/stores/workoutStore';
+import { useHabits } from '@/stores/habitStore';
+import { usePhotos } from '@/stores/photoStore';
+import { clearAllLocalData, clearDayData } from '@/data/reset';
+import { shortDate } from '@/lib/utils';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 
@@ -37,17 +45,43 @@ export function Settings() {
 
   const reminders = useReminders((s) => s.reminders);
   const updateReminder = useReminders((s) => s.update);
+  const addReminder = useReminders((s) => s.add);
+  const removeReminder = useReminders((s) => s.remove);
   const requestPermission = useReminders((s) => s.requestPermission);
 
   const cloud = useCloud();
   const [authOpen, setAuthOpen] = useState(false);
   const [creds, setCreds] = useState({ email: '', password: '', create: false });
+  const [newRem, setNewRem] = useState<{ kind: ReminderKind; time: string }>({ kind: 'meal', time: '09:00' });
+  const triggersAvailable = 'Notification' in window && 'showTrigger' in Notification.prototype;
+
+  const selectedDay = useDay((s) => s.selected);
 
   if (!profile || !settings) return null;
 
   const enableNotifications = async () => {
     const granted = await requestPermission();
     await updateSettings({ notificationsEnabled: granted });
+  };
+
+  const clearDay = async () => {
+    if (!window.confirm(t('settings.clearDayConfirm', { date: shortDate(selectedDay, settings.locale) }))) return;
+    await clearDayData(selectedDay);
+    // Reload the affected day-scoped stores.
+    await Promise.all([
+      useNutrition.getState().load(selectedDay),
+      useWorkout.getState().load(),
+      useCardio.getState().load(),
+      usePhotos.getState().load(),
+    ]);
+    await useHabits.getState().refresh(selectedDay);
+  };
+
+  const resetAll = async () => {
+    if (!window.confirm(t('settings.resetConfirm'))) return;
+    if (cloud.user) await cloud.signOut(); // avoid immediate re-pull from cloud
+    await clearAllLocalData();
+    window.location.reload();
   };
 
   return (
@@ -84,14 +118,14 @@ export function Settings() {
         <div>
           <label className="label">{t('settings.activity')}</label>
           <select className="input" value={profile.activityLevel} onChange={(e) => void updateProfile({ activityLevel: e.target.value as ActivityLevel })}>
-            {ACTIVITY.map((a) => <option key={a} value={a}>{a}</option>)}
+            {ACTIVITY.map((a) => <option key={a} value={a}>{t(`settings.activities.${a}`)}</option>)}
           </select>
         </div>
       </section>
 
       {/* Preferences */}
       <section className="card space-y-3">
-        <h2 className="font-bold">{t('settings.title')}</h2>
+        <h2 className="font-bold">{t('settings.preferences')}</h2>
         <div className="flex items-center justify-between">
           <span>{t('settings.language')}</span>
           <div className="flex gap-1">
@@ -157,12 +191,32 @@ export function Settings() {
               onChange={(e) => void updateReminder({ ...r, time: e.target.value })}
               className="input h-10 w-28 py-1"
             />
-            <span className="flex-1 truncate text-sm">{r.label}</span>
+            <span className="flex-1 truncate text-sm">{t(`reminderKinds.${r.kind}`)}</span>
             <Toggle on={r.enabled} onClick={() => void updateReminder({ ...r, enabled: !r.enabled })} />
+            <button type="button" onClick={() => void removeReminder(r.id)} className="icon-btn h-9 w-9 text-danger" aria-label={t('common.delete')}>
+              <Icon name="close" size={16} />
+            </button>
           </div>
         ))}
+
+        {/* Add a new reminder */}
+        <div className="flex items-center gap-2 border-t border-white/5 pt-2">
+          <input type="time" value={newRem.time} onChange={(e) => setNewRem({ ...newRem, time: e.target.value })} className="input h-10 w-28 py-1" />
+          <select value={newRem.kind} onChange={(e) => setNewRem({ ...newRem, kind: e.target.value as ReminderKind })} className="input h-10 flex-1 py-1 text-sm">
+            {(['meal', 'supplements', 'creatine', 'water', 'workout', 'cardio'] as ReminderKind[]).map((k) => (
+              <option key={k} value={k}>{t(`reminderKinds.${k}`)}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => void addReminder(newRem.kind, newRem.time, t(`reminderKinds.${newRem.kind}`))} className="btn-primary h-10 px-3 text-sm">
+            <Icon name="plus" size={16} /> {t('common.add')}
+          </button>
+        </div>
+
         {!settings.notificationsEnabled && (
           <p className="text-xs text-slate-500">{t('settings.enableNotifications')} ↑</p>
+        )}
+        {settings.notificationsEnabled && !triggersAvailable && (
+          <p className="text-xs text-slate-500">{t('settings.notifWhileOpen')}</p>
         )}
       </section>
 
@@ -185,11 +239,14 @@ export function Settings() {
           <p className="text-sm text-slate-400">{t('settings.localOnly')}</p>
         ) : cloud.user ? (
           <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-brand">
+              <Icon name="check" size={16} /> {cloud.syncing ? t('settings.syncing') : t('settings.synced')}
+            </p>
             <p className="text-sm text-slate-300">{cloud.user.email}</p>
-            {cloud.lastSync && <p className="text-xs text-slate-500">Last sync: {new Date(cloud.lastSync).toLocaleTimeString()}</p>}
+            {cloud.lastSync && <p className="text-xs text-slate-500">{t('settings.lastSync')}: {new Date(cloud.lastSync).toLocaleTimeString()}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => void cloud.syncNow()} disabled={cloud.syncing} className="btn-primary flex-1">
-                {cloud.syncing ? '…' : 'Sync now'}
+                {cloud.syncing ? '…' : t('settings.syncNow')}
               </button>
               <button type="button" onClick={() => void cloud.signOut()} className="btn-ghost flex-1">{t('settings.signOut')}</button>
             </div>
@@ -199,14 +256,26 @@ export function Settings() {
         )}
       </section>
 
+      {/* Data — danger zone */}
+      <section className="card space-y-2">
+        <h2 className="mb-1 font-bold text-danger">{t('settings.data')}</h2>
+        <button type="button" onClick={() => void clearDay()} className="btn-ghost w-full justify-between text-sm">
+          <span className="flex items-center gap-2"><Icon name="close" size={16} /> {t('settings.clearDay')}</span>
+          <span className="text-xs text-slate-400">{shortDate(selectedDay, settings.locale)}</span>
+        </button>
+        <button type="button" onClick={() => void resetAll()} className="btn-danger w-full text-sm">
+          {t('settings.resetAll')}
+        </button>
+      </section>
+
       <Sheet open={authOpen} onClose={() => setAuthOpen(false)} title={t('settings.cloud')}>
         <div className="space-y-3">
-          <input className="input" type="email" placeholder="email" value={creds.email} onChange={(e) => setCreds({ ...creds, email: e.target.value })} />
-          <input className="input" type="password" placeholder="password" value={creds.password} onChange={(e) => setCreds({ ...creds, password: e.target.value })} />
+          <input className="input" type="email" placeholder={t('settings.email')} value={creds.email} onChange={(e) => setCreds({ ...creds, email: e.target.value })} />
+          <input className="input" type="password" placeholder={t('settings.password')} value={creds.password} onChange={(e) => setCreds({ ...creds, password: e.target.value })} />
           {cloud.error && <p className="text-sm text-danger">{cloud.error}</p>}
           <div className="flex gap-2">
             <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, false).then(() => setAuthOpen(false))} className="btn-primary flex-1">{t('settings.signIn')}</button>
-            <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, true).then(() => setAuthOpen(false))} className="btn-ghost flex-1">Sign up</button>
+            <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, true).then(() => setAuthOpen(false))} className="btn-ghost flex-1">{t('settings.signUp')}</button>
           </div>
         </div>
       </Sheet>

@@ -25,6 +25,7 @@ const COLLECTIONS = [
   'progressPhotos',
   'dailyChecklists',
   'videoAssets',
+  'reminders',
 ] as const;
 
 type CollName = (typeof COLLECTIONS)[number];

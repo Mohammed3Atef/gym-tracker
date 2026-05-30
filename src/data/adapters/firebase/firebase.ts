@@ -1,6 +1,8 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
-  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  browserLocalPersistence,
   type Auth,
 } from 'firebase/auth';
 import {
@@ -37,7 +39,11 @@ export function ensureFirebase(): { app: FirebaseApp; db: Firestore; auth: Auth 
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
     });
-    auth = getAuth(app);
+    // Persist the session (IndexedDB, falling back to localStorage) so the user
+    // stays signed in after closing/reopening the app — no re-login each time.
+    auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    });
   }
   return { app: app!, db: db!, auth: auth! };
 }

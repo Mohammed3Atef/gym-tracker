@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { CardioLog, CardioType, WeightLog } from '@/types';
 import { getDataSource } from '@/data/dataSource';
-import { today, uid } from '@/lib/utils';
+import { uid } from '@/lib/utils';
 import { notifyHabitChange } from './habitStore';
+import { useDay } from './dayStore';
 
 interface CardioState {
   cardioLogs: CardioLog[];
@@ -44,7 +45,7 @@ export const useCardio = create<CardioState>((set, get) => ({
   },
 
   async addCardio(input) {
-    const date = input.date ?? today();
+    const date = input.date ?? useDay.getState().selected;
     const log: CardioLog = {
       id: uid('cardio'),
       date,
@@ -61,7 +62,7 @@ export const useCardio = create<CardioState>((set, get) => ({
     notifyHabitChange();
   },
 
-  async addSteps(steps, date = today()) {
+  async addSteps(steps, date = useDay.getState().selected) {
     // Steps are stored as a cardio log entry of type 'walking' with no duration.
     const log: CardioLog = {
       id: uid('steps'),
@@ -85,7 +86,7 @@ export const useCardio = create<CardioState>((set, get) => ({
     notifyHabitChange();
   },
 
-  async logWeight(weightKg, date = today()) {
+  async logWeight(weightKg, date = useDay.getState().selected) {
     const log: WeightLog = { id: date, date, weightKg, updatedAt: Date.now(), dirty: true };
     await getDataSource().weightLogs.put(log);
     const others = get().weightLogs.filter((w) => w.id !== date);

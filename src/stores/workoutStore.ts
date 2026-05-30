@@ -9,6 +9,7 @@ import type {
 import { getDataSource } from '@/data/dataSource';
 import { debounce, today } from '@/lib/utils';
 import { notifyHabitChange } from './habitStore';
+import { useDay } from './dayStore';
 
 /** Last performed weight×reps for an exercise, for the "previous" ghost column. */
 export interface PrevPerf {
@@ -23,6 +24,7 @@ interface WorkoutState {
   loaded: boolean;
 
   load: () => Promise<void>;
+  loadDay: (date: string) => void;
   startSession: (dayId: string) => Promise<void>;
   resumeActive: () => WorkoutLog | null;
   discardActive: () => Promise<void>;
@@ -92,21 +94,30 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       ds.workoutLogs.getAll(),
     ]);
     const plan = plans[0] ?? null;
-    // An unfinished log == an in-progress session to recover.
-    const active = logs.find((l) => !l.finished) ?? null;
-    set({ plan, logs: logs.sort((a, b) => b.date.localeCompare(a.date)), active, loaded: true });
+    const sorted = logs.sort((a, b) => b.date.localeCompare(a.date));
+    set({ plan, logs: sorted, loaded: true });
+    // Focus today's log by default (in-progress → resume, finished → editable).
+    get().loadDay(today());
+  },
+
+  /** Point `active` at the log for the given calendar day (or null). */
+  loadDay(date) {
+    const log = get().logs.find((l) => l.id === date) ?? null;
+    set({ active: log });
   },
 
   async startSession(dayId) {
-    const { plan } = get();
+    const { plan, logs } = get();
     if (!plan) return;
     const day = plan.days.find((d) => d.id === dayId);
     if (!day) return;
-    const date = today();
-    const existing = await getDataSource().workoutLogs.get(date);
-    // If there's already an unfinished session today, reuse it; else start fresh.
-    const session = existing && !existing.finished ? existing : buildSession(plan, day, date);
-    set({ active: session });
+    const date = useDay.getState().selected;
+    const existing = logs.find((l) => l.id === date);
+    // Same workout for that day → continue/edit it; otherwise start fresh
+    // (replacing any other workout logged for that date).
+    const session = existing && existing.dayId === dayId ? existing : buildSession(plan, day, date);
+    const others = logs.filter((l) => l.id !== date);
+    set({ active: session, logs: [session, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
     await getDataSource().workoutLogs.put(session);
   },
 
@@ -205,7 +216,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     await getDataSource().workoutLogs.put(finished);
     const others = logs.filter((l) => l.id !== finished.id);
     set({
-      active: null,
+      active: finished,
       logs: [finished, ...others].sort((a, b) => b.date.localeCompare(a.date)),
     });
     notifyHabitChange();
@@ -213,8 +224,9 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
 
   previousFor(exerciseId) {
     const { logs, active } = get();
+    // Most recent finished session BEFORE the day being edited.
     for (const log of logs) {
-      if (active && log.id === active.id) continue;
+      if (active && log.id >= active.date) continue;
       if (!log.finished) continue;
       const ex = log.exercises.find((e) => e.exerciseId === exerciseId);
       if (ex && ex.sets.some((s) => s.weightKg != null || s.actualReps != null)) {

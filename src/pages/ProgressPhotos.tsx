@@ -68,6 +68,15 @@ export function ProgressPhotos() {
     e.target.value = '';
   };
 
+  // Open the picker: camera (`capture`) or the gallery / file chooser.
+  const pickPhoto = (useCamera: boolean) => {
+    const input = fileRef.current;
+    if (!input) return;
+    if (useCamera) input.setAttribute('capture', 'environment');
+    else input.removeAttribute('capture');
+    input.click();
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">{t('progress.photos')}</h1>
@@ -81,10 +90,18 @@ export function ProgressPhotos() {
             </button>
           ))}
         </div>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void onFile(e)} />
-        <button type="button" onClick={() => fileRef.current?.click()} className="btn-primary btn-lg w-full">
-          <Icon name="camera" size={20} /> {t('progress.addPhoto')} — {t(`progress.${pose}`)}
-        </button>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onFile(e)} />
+        <p className="mb-2 text-xs text-slate-400">
+          {t('progress.addPhoto')} — {t(`progress.${pose}`)}
+        </p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => pickPhoto(false)} className="btn-primary btn-lg flex-1">
+            <Icon name="image" size={18} /> {t('progress.gallery')}
+          </button>
+          <button type="button" onClick={() => pickPhoto(true)} className="btn-ghost btn-lg flex-1">
+            <Icon name="camera" size={18} /> {t('progress.camera')}
+          </button>
+        </div>
       </div>
 
       <button type="button" onClick={() => setCompare((v) => !v)} className="btn-ghost w-full" disabled={dates.length < 2}>

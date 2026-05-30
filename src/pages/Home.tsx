@@ -11,7 +11,7 @@ import { useTimer } from '@/stores/timerStore';
 import { Icon, type IconName } from '@/components/Icon';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Sheet } from '@/components/Sheet';
-import { today } from '@/lib/utils';
+import { useDay } from '@/stores/dayStore';
 
 const CHECKLIST_LABELS: Record<string, string> = {
   workout: 'nav.workout',
@@ -55,7 +55,8 @@ export function Home() {
   }, [plan, logs]);
 
   const eatenMeals = nutritionLog ? Object.values(nutritionLog.mealsEaten).filter(Boolean).length : 0;
-  const todaySteps = stepsFor(today());
+  const selectedDay = useDay((s) => s.selected);
+  const todaySteps = stepsFor(selectedDay);
 
   const nextReminder = useMemo(() => {
     const now = new Date();

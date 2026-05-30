@@ -5,9 +5,10 @@ import { useCardio } from '@/stores/cardioStore';
 import { useSettings } from '@/stores/settingsStore';
 import { useElapsed } from '@/hooks/useElapsed';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useDay } from '@/stores/dayStore';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
-import { formatDuration, shortDate, today } from '@/lib/utils';
+import { formatDuration, shortDate } from '@/lib/utils';
 
 const TYPES: CardioType[] = ['walking', 'treadmill', 'running', 'cycling', 'other'];
 
@@ -56,8 +57,9 @@ export function Cardio() {
     setStepsOpen(false);
   };
 
-  const todaySteps = stepsFor(today());
-  const todayCardioMin = Math.round(cardioSecFor(today()) / 60);
+  const selected = useDay((s) => s.selected);
+  const todaySteps = stepsFor(selected);
+  const todayCardioMin = Math.round(cardioSecFor(selected) / 60);
 
   return (
     <div className="space-y-4">

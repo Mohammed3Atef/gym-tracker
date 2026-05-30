@@ -37,15 +37,22 @@ export const SEED_SETTINGS: AppSettings = {
 };
 
 /** Sensible default reminders (disabled until the user opts in). */
+const rem = (
+  id: string,
+  kind: Reminder['kind'],
+  label: string,
+  time: string,
+): Reminder => ({ id, kind, label, time, enabled: false, repeatDays: [], updatedAt: 0, dirty: false });
+
 export const SEED_REMINDERS: Reminder[] = [
-  { id: 'rem_meal1', kind: 'meal', label: 'Meal 1 (breakfast)', time: '08:00', enabled: false, repeatDays: [] },
-  { id: 'rem_meal2', kind: 'meal', label: 'Meal 2 (lunch)', time: '12:30', enabled: false, repeatDays: [] },
-  { id: 'rem_meal3', kind: 'meal', label: 'Meal 3 (dinner)', time: '16:30', enabled: false, repeatDays: [] },
-  { id: 'rem_meal4', kind: 'meal', label: 'Meal 4 (snack)', time: '20:00', enabled: false, repeatDays: [] },
-  { id: 'rem_supps', kind: 'supplements', label: 'Vitamins after breakfast', time: '08:30', enabled: false, repeatDays: [] },
-  { id: 'rem_mag', kind: 'supplements', label: 'Mag White before sleep', time: '23:15', enabled: false, repeatDays: [] },
-  { id: 'rem_creatine', kind: 'creatine', label: 'Creatine', time: '17:00', enabled: false, repeatDays: [] },
-  { id: 'rem_water', kind: 'water', label: 'Drink water', time: '14:00', enabled: false, repeatDays: [] },
-  { id: 'rem_workout', kind: 'workout', label: 'Workout time', time: '18:00', enabled: false, repeatDays: [] },
-  { id: 'rem_cardio', kind: 'cardio', label: 'Cardio / walk', time: '19:00', enabled: false, repeatDays: [] },
+  rem('rem_meal1', 'meal', 'Meal 1 (breakfast)', '08:00'),
+  rem('rem_meal2', 'meal', 'Meal 2 (lunch)', '12:30'),
+  rem('rem_meal3', 'meal', 'Meal 3 (dinner)', '16:30'),
+  rem('rem_meal4', 'meal', 'Meal 4 (snack)', '20:00'),
+  rem('rem_supps', 'supplements', 'Vitamins after breakfast', '08:30'),
+  rem('rem_mag', 'supplements', 'Mag White before sleep', '23:15'),
+  rem('rem_creatine', 'creatine', 'Creatine', '17:00'),
+  rem('rem_water', 'water', 'Drink water', '14:00'),
+  rem('rem_workout', 'workout', 'Workout time', '18:00'),
+  rem('rem_cardio', 'cardio', 'Cardio / walk', '19:00'),
 ];

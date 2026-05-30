@@ -153,7 +153,7 @@ export function ExerciseCard({
             <div className="rounded-xl bg-surface-raised/40 p-3 text-sm text-slate-300">
               {loc(exercise.notes)}
               {exercise.tempo && exercise.tempo !== '-' && (
-                <p className="mt-1 text-xs text-slate-500">Tempo {exercise.tempo}</p>
+                <p className="mt-1 text-xs text-slate-500">{t('workout.tempo')} {exercise.tempo}</p>
               )}
             </div>
           )}
