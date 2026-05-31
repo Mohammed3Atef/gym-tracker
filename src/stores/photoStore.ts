@@ -32,11 +32,12 @@ export const usePhotos = create<PhotoState>((set, get) => ({
       date: opts?.date ?? today(),
       pose,
       localKey,
-      weightKg: opts?.weightKg,
-      note: opts?.note,
       updatedAt: Date.now(),
       dirty: true,
     };
+    // Only set optional fields when present (never store `undefined`).
+    if (opts?.weightKg != null) photo.weightKg = opts.weightKg;
+    if (opts?.note) photo.note = opts.note;
     await getDataSource().progressPhotos.put(photo);
     set({ photos: [photo, ...get().photos] });
   },

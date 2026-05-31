@@ -18,6 +18,19 @@ import { clearAllTombstones, clearTombstone, listTombstones } from './tombstones
 
 type Dirty = { id: string; updatedAt: number; dirty?: boolean };
 
+/** Recursively drop `undefined` values — Firestore rejects them. */
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((v) => stripUndefined(v)) as unknown as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = stripUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 const COLLECTIONS = [
   'workoutLogs',
   'nutritionLogs',
@@ -50,7 +63,7 @@ export class SyncEngine {
     const all = await repo.getAll();
     const dirty = all.filter((r) => r.dirty);
     for (const rec of dirty) {
-      await setDoc(doc(db, this.path(name), rec.id), rec as Record<string, unknown>);
+      await setDoc(doc(db, this.path(name), rec.id), stripUndefined(rec) as Record<string, unknown>);
       await repo.put({ ...rec, dirty: false });
     }
     return dirty.length;
@@ -82,7 +95,7 @@ export class SyncEngine {
     const [local, remoteSnap] = await Promise.all([repo.get(), getDoc(ref)]);
     const remote = remoteSnap.exists() ? (remoteSnap.data() as T) : null;
     if (local && (!remote || local.updatedAt >= remote.updatedAt)) {
-      await setDoc(ref, local as Record<string, unknown>);
+      await setDoc(ref, stripUndefined(local) as Record<string, unknown>);
     } else if (remote && (!local || remote.updatedAt > local.updatedAt)) {
       await repo.set(remote);
     }
