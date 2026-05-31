@@ -44,6 +44,7 @@ export function ensureFirebase(): { app: FirebaseApp; db: Firestore; auth: Auth 
     auth = initializeAuth(app, {
       persistence: [indexedDBLocalPersistence, browserLocalPersistence],
     });
+    console.info(`[firebase] initialized · project "${firebaseConfig.projectId}"`);
   }
   return { app: app!, db: db!, auth: auth! };
 }

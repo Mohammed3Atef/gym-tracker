@@ -21,6 +21,7 @@ import { Nutrition } from '@/pages/Nutrition';
 import { Cardio } from '@/pages/Cardio';
 import { Progress } from '@/pages/Progress';
 import { ProgressPhotos } from '@/pages/ProgressPhotos';
+import { Measurements } from '@/pages/Measurements';
 import { Settings } from '@/pages/Settings';
 import { VideoManager } from '@/pages/VideoManager';
 import { ImportData } from '@/pages/ImportData';
@@ -76,6 +77,7 @@ export function App() {
       <Route path="/cardio" element={<AppShell showDayNav><Cardio /></AppShell>} />
       <Route path="/progress" element={<AppShell><Progress /></AppShell>} />
       <Route path="/progress/photos" element={<AppShell><ProgressPhotos /></AppShell>} />
+      <Route path="/progress/measurements" element={<AppShell showDayNav><Measurements /></AppShell>} />
       <Route path="/settings" element={<AppShell><Settings /></AppShell>} />
       <Route path="/settings/videos" element={<AppShell><VideoManager /></AppShell>} />
       <Route path="/settings/import" element={<AppShell><ImportData /></AppShell>} />

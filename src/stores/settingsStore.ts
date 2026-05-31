@@ -12,6 +12,8 @@ interface SettingsState {
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   updateTargets: (patch: Partial<DailyTargets>) => Promise<void>;
   setLocale: (locale: Locale) => Promise<void>;
+  addMeasurementPart: (label: string) => Promise<void>;
+  removeMeasurementPart: (key: string) => Promise<void>;
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
@@ -21,10 +23,12 @@ export const useSettings = create<SettingsState>((set, get) => ({
 
   async load() {
     const ds = getDataSource();
-    const [profile, settings] = await Promise.all([
+    const [profile, raw] = await Promise.all([
       ds.profile.get(),
       ds.settings.get(),
     ]);
+    // Backfill fields added after a settings doc was first created.
+    const settings = raw ? { ...raw, customMeasurements: raw.customMeasurements ?? [] } : null;
     if (settings) applyLocale(settings.locale);
     set({ profile, settings, loaded: true });
   },
@@ -55,5 +59,22 @@ export const useSettings = create<SettingsState>((set, get) => ({
     applyLocale(locale);
     await get().updateSettings({ locale });
     await get().updateProfile({ locale });
+  },
+
+  async addMeasurementPart(label) {
+    const cur = get().settings;
+    const name = label.trim();
+    if (!cur || !name) return;
+    const list = cur.customMeasurements ?? [];
+    const key = `m_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    await get().updateSettings({ customMeasurements: [...list, { key, label: name }] });
+  },
+
+  async removeMeasurementPart(key) {
+    const cur = get().settings;
+    if (!cur) return;
+    await get().updateSettings({
+      customMeasurements: (cur.customMeasurements ?? []).filter((m) => m.key !== key),
+    });
   },
 }));

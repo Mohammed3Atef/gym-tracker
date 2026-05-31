@@ -6,6 +6,8 @@ interface CloudUser {
   email: string | null;
 }
 
+export type CloudStatus = 'local' | 'signedIn' | 'syncing' | 'synced' | 'error';
+
 interface CloudState {
   available: boolean;
   user: CloudUser | null;
@@ -19,6 +21,15 @@ interface CloudState {
   wipeCloud: () => Promise<void>;
 }
 
+/** Derive the badge status from the current cloud state. */
+export function cloudStatus(s: Pick<CloudState, 'available' | 'user' | 'syncing' | 'lastSync' | 'error'>): CloudStatus {
+  if (s.user && s.error) return 'error';
+  if (!s.available || !s.user) return 'local';
+  if (s.syncing) return 'syncing';
+  if (s.lastSync) return 'synced';
+  return 'signedIn';
+}
+
 export const useCloud = create<CloudState>((set, get) => ({
   available: cloudAvailable(),
   user: null,
@@ -27,10 +38,15 @@ export const useCloud = create<CloudState>((set, get) => ({
   error: null,
 
   init() {
-    if (!cloudAvailable()) return;
+    if (!cloudAvailable()) {
+      console.info('[firebase] not configured — running local-only');
+      return;
+    }
+    console.info('[firebase] configured — attaching auth listener');
     // Subscribe to auth changes and auto-sync on sign-in / reconnect.
     void import('@/services/auth/firebaseAuth').then(({ firebaseAuth }) => {
       firebaseAuth.onChange((u) => {
+        console.info('[firebase] auth state:', u ? `signed in (${u.uid})` : 'signed out');
         set({ user: u ? { uid: u.uid, email: u.email } : null });
         if (u) void get().syncNow();
       });
@@ -46,13 +62,16 @@ export const useCloud = create<CloudState>((set, get) => ({
   async signIn(email, password, create) {
     set({ error: null });
     try {
+      console.info(`[firebase] ${create ? 'signing up' : 'signing in'} ${email}`);
       const { firebaseAuth } = await import('@/services/auth/firebaseAuth');
       const user = create
         ? await firebaseAuth.signUp(email, password)
         : await firebaseAuth.signIn(email, password);
+      console.info('[firebase] signed in as', user.uid);
       set({ user: { uid: user.uid, email: user.email } });
       await get().syncNow();
     } catch (e) {
+      console.error('[firebase] sign-in failed:', e);
       set({ error: e instanceof Error ? e.message : 'Sign-in failed' });
     }
   },
@@ -60,18 +79,21 @@ export const useCloud = create<CloudState>((set, get) => ({
   async signOut() {
     const { firebaseAuth } = await import('@/services/auth/firebaseAuth');
     await firebaseAuth.signOutUser();
-    set({ user: null });
+    console.info('[firebase] signed out');
+    set({ user: null, lastSync: null });
   },
 
   async syncNow() {
     const { user } = get();
     if (!user || get().syncing) return;
-    set({ syncing: true });
+    set({ syncing: true, error: null });
     try {
       const { SyncEngine } = await import('@/data/sync/SyncEngine');
-      await new SyncEngine(user.uid).sync();
+      const result = await new SyncEngine(user.uid).sync();
+      console.info(`[sync] done · pushed ${result.pushed}, pulled ${result.pulled} → users/${user.uid}`);
       set({ lastSync: Date.now() });
     } catch (e) {
+      console.error('[sync] failed:', e);
       set({ error: e instanceof Error ? e.message : 'Sync failed' });
     } finally {
       set({ syncing: false });

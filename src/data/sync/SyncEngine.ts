@@ -23,6 +23,7 @@ const COLLECTIONS = [
   'nutritionLogs',
   'cardioLogs',
   'weightLogs',
+  'measurementLogs',
   'progressPhotos',
   'dailyChecklists',
   'videoAssets',

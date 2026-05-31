@@ -85,11 +85,16 @@ export function Progress() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">{t('progress.title')}</h1>
-        <button type="button" onClick={() => navigate('/progress/photos')} className="btn-ghost h-10 px-3 text-sm">
-          <Icon name="camera" size={18} /> {t('progress.photos')}
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => navigate('/progress/measurements')} className="btn-ghost h-10 px-3 text-sm">
+            <Icon name="scale" size={18} /> {t('measure.title')}
+          </button>
+          <button type="button" onClick={() => navigate('/progress/photos')} className="btn-ghost h-10 px-3 text-sm">
+            <Icon name="camera" size={18} /> {t('progress.photos')}
+          </button>
+        </div>
       </div>
 
       <ChartCard title={t('progress.bodyWeight')}>

@@ -11,7 +11,9 @@ import { useTimer } from '@/stores/timerStore';
 import { Icon, type IconName } from '@/components/Icon';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Sheet } from '@/components/Sheet';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { useDay } from '@/stores/dayStore';
+import { formatDuration } from '@/lib/utils';
 
 const CHECKLIST_LABELS: Record<string, string> = {
   workout: 'nav.workout',
@@ -103,9 +105,12 @@ export function Home() {
           <p className="text-sm text-slate-400">{t('common.today')}</p>
           <h1 className="text-2xl font-bold">{t('home.greeting', { name: profile?.name ?? '' })}</h1>
         </div>
-        <div className="flex items-center gap-1 rounded-full bg-surface-card px-3 py-1.5">
-          <Icon name="flame" size={18} className="text-warn" />
-          <span className="font-bold">{streaks.overall.current}</span>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-1 rounded-full bg-surface-card px-3 py-1.5">
+            <Icon name="flame" size={18} className="text-warn" />
+            <span className="font-bold">{streaks.overall.current}</span>
+          </div>
+          <SyncStatusBadge />
         </div>
       </header>
 
@@ -184,7 +189,7 @@ export function Home() {
         <div className="grid grid-cols-3 gap-2">
           {[60, 90, 120, 150, 180, 240].map((sec) => (
             <button key={sec} type="button" onClick={() => { startRest(sec); setRestOpen(false); }} className="btn-ghost btn-lg">
-              {sec >= 60 ? `${sec / 60}:${String(sec % 60).padStart(2, '0')}` : `${sec}s`}
+              {formatDuration(sec)}
             </button>
           ))}
         </div>

@@ -14,6 +14,7 @@ import { usePhotos } from '@/stores/photoStore';
 import { clearAllLocalData, clearDayData } from '@/data/reset';
 import { confirmDialog, alertDialog } from '@/stores/dialogStore';
 import { ensurePersistentStorage, isStoragePersisted } from '@/lib/storage';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { shortDate } from '@/lib/utils';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
@@ -266,7 +267,10 @@ export function Settings() {
 
       {/* Cloud */}
       <section className="card">
-        <h2 className="mb-1 font-bold">{t('settings.cloud')}</h2>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="font-bold">{t('settings.cloud')}</h2>
+          <SyncStatusBadge />
+        </div>
         {!cloud.available ? (
           <p className="text-sm text-slate-400">{t('settings.localOnly')}</p>
         ) : cloud.user ? (

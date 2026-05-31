@@ -215,6 +215,7 @@
     "remove": "Remove download",
     "setUrl": "Set video URL",
     "missingFile": "No video file found for this exercise yet. Add a matching .mp4 to public/exercise_videos/.",
+    "offlineNeedsDownload": "You're offline and this clip isn't saved yet. Connect once and tap \"Download all\" in Video Manager to use it offline.",
     "fallback": "This source can't be saved offline. Open it online, or paste a direct video file (.mp4) URL."
   },
   "import": {
@@ -227,11 +228,42 @@
     "success": "Imported successfully",
     "invalid": "Could not parse the input"
   },
+  "measure": {
+    "title": "Measurements",
+    "forDay": "Measurements for this day",
+    "compare": "Compare",
+    "part": "Body part",
+    "addPart": "Add a body part (e.g. shoulder)",
+    "empty": "No measurements yet — add them to track changes over time.",
+    "parts": {
+      "neck": "Neck",
+      "shoulders": "Shoulders",
+      "chest": "Chest",
+      "upperBack": "Upper back",
+      "arm": "Arm",
+      "forearm": "Forearm",
+      "wrist": "Wrist",
+      "waist": "Waist",
+      "abdomen": "Abdomen",
+      "hips": "Hips",
+      "glutes": "Glutes",
+      "thigh": "Thigh",
+      "calf": "Calf",
+      "ankle": "Ankle"
+    }
+  },
   "guide": {
     "title": "Training guide",
     "general": "General information",
     "rpeRir": "RPE / RIR rating",
     "meaning": "Meaning"
+  },
+  "cloudState": {
+    "local": "Local only",
+    "signedIn": "Signed in",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "error": "Sync error"
   },
   "reminder": { "dueNow": "Reminder: {{label}}" },
   "reminderKinds": {

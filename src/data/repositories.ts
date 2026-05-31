@@ -3,6 +3,7 @@ import type {
   CardioLog,
   DailyChecklist,
   MealPlan,
+  MeasurementLog,
   NutritionLog,
   ProgressPhoto,
   Reminder,
@@ -46,6 +47,7 @@ export interface DataSource {
   nutritionLogs: Repository<NutritionLog>;
   cardioLogs: Repository<CardioLog>;
   weightLogs: Repository<WeightLog>;
+  measurementLogs: Repository<MeasurementLog>;
   videoAssets: Repository<VideoAsset>;
   progressPhotos: Repository<ProgressPhoto>;
   dailyChecklists: Repository<DailyChecklist>;

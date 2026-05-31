@@ -33,6 +33,7 @@ export const SEED_SETTINGS: AppSettings = {
     steps: 10000,
     cardioMinutes: 40,
   },
+  customMeasurements: [],
   updatedAt: 0,
 };
 

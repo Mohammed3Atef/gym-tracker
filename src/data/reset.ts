@@ -13,6 +13,7 @@ const STORES = [
   'nutritionLogs',
   'cardioLogs',
   'weightLogs',
+  'measurementLogs',
   'videoAssets',
   'progressPhotos',
   'dailyChecklists',
@@ -44,11 +45,13 @@ export async function clearDayData(date: string): Promise<void> {
   await ds.workoutLogs.remove(date);
   await ds.nutritionLogs.remove(date);
   await ds.weightLogs.remove(date);
+  await ds.measurementLogs.remove(date);
   await ds.dailyChecklists.remove(date);
   // Tombstones so these deletions reach the cloud (date-keyed docs use the date).
   await recordDeletion('workoutLogs', date);
   await recordDeletion('nutritionLogs', date);
   await recordDeletion('weightLogs', date);
+  await recordDeletion('measurementLogs', date);
 
   const cardio = await ds.cardioLogs.getAll();
   const cardioIds = cardio.filter((c) => c.date === date).map((c) => c.id);

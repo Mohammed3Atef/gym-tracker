@@ -206,6 +206,40 @@ export interface WeightLog {
   dirty: boolean;
 }
 
+export type MeasurementKey =
+  | 'neck'
+  | 'shoulders'
+  | 'chest'
+  | 'upperBack'
+  | 'arm'
+  | 'forearm'
+  | 'wrist'
+  | 'waist'
+  | 'abdomen'
+  | 'hips'
+  | 'glutes'
+  | 'thigh'
+  | 'calf'
+  | 'ankle';
+
+/** A user-defined measurement part (in addition to the built-in ones). */
+export interface CustomMeasurement {
+  key: string;
+  label: string;
+}
+
+/**
+ * Body measurements (cm) logged on a given day, for before/after comparison.
+ * Keyed by a built-in MeasurementKey OR a custom part key.
+ */
+export interface MeasurementLog {
+  id: string; // == date
+  date: DayKey;
+  values: Record<string, number>;
+  updatedAt: number;
+  dirty: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Video
 // ---------------------------------------------------------------------------
@@ -338,6 +372,8 @@ export interface AppSettings {
   vibrationEnabled: boolean;
   notificationsEnabled: boolean;
   targets: DailyTargets;
+  /** Extra body-measurement parts the user added. */
+  customMeasurements: CustomMeasurement[];
   updatedAt: number;
 }
 

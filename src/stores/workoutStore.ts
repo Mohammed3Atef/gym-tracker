@@ -105,6 +105,10 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
 
   /** Point `active` at the log for the given calendar day (or null). */
   loadDay(date) {
+    const cur = get().active;
+    // Never clobber a live in-progress session for the same day (would wipe
+    // unsaved reps/weights if this re-runs mid-workout).
+    if (cur && cur.id === date && !cur.finished && cur.startedAt) return;
     const log = get().logs.find((l) => l.id === date) ?? null;
     set({ active: log });
   },
@@ -165,7 +169,8 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
           },
     );
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
-    set({ active: next });
+    // Keep the logs array in sync so loadDay/previousFor never read stale data.
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
     if (next.startedAt) persist(next); // edits before "Start" stay in memory
   },
 
@@ -209,7 +214,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       return { ...ex, sets: [...ex.sets, newSet], done: false };
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
-    set({ active: next });
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
     if (next.startedAt) persist(next);
   },
 
@@ -225,7 +230,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       return { ...ex, sets, done: sets.length > 0 && sets.every((s) => s.done) };
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
-    set({ active: next });
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
     if (next.startedAt) persist(next);
   },
 

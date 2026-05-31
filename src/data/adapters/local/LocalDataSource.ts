@@ -5,6 +5,7 @@ import type {
   CardioLog,
   DailyChecklist,
   MealPlan,
+  MeasurementLog,
   NutritionLog,
   ProgressPhoto,
   Reminder,
@@ -27,6 +28,7 @@ export class LocalDataSource implements DataSource {
   nutritionLogs = new LocalRepository<NutritionLog>('nutritionLogs');
   cardioLogs = new LocalRepository<CardioLog>('cardioLogs');
   weightLogs = new LocalRepository<WeightLog>('weightLogs');
+  measurementLogs = new LocalRepository<MeasurementLog>('measurementLogs');
   videoAssets = new LocalRepository<VideoAsset>('videoAssets');
   progressPhotos = new LocalRepository<ProgressPhoto>('progressPhotos');
   dailyChecklists = new LocalRepository<DailyChecklist>('dailyChecklists');
