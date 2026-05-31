@@ -8,12 +8,10 @@
     "rewrites": [{ "source": "**", "destination": "/index.html" }],
     "headers": [
       {
-        "//": "Hashed build assets never change — cache them forever.",
         "source": "/assets/**",
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
       },
       {
-        "//": "The service worker, app shell and manifest MUST NOT be cached, so a new deploy is detected and applied without reinstalling the PWA.",
         "source": "/sw.js",
         "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
       },
@@ -26,7 +24,6 @@
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       },
       {
-        "//": "Exercise videos: cache for a day; the app also caches them offline.",
         "source": "/exercise_videos/**",
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
       }
