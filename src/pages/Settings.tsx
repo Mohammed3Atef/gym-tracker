@@ -93,6 +93,28 @@ export function Settings() {
     if (cloud.user) void cloud.syncNow();
   };
 
+  // Pull the latest build: unregister the service worker + clear the app/cache
+  // storage, then reload. Keeps IndexedDB (your data, downloaded videos, login).
+  const forceUpdate = async () => {
+    const ok = await confirmDialog({
+      title: t('settings.forceUpdate'),
+      message: t('settings.forceUpdateConfirm'),
+      confirmLabel: t('settings.forceUpdate'),
+    });
+    if (!ok) return;
+    try {
+      const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+      await Promise.all(regs.map((r) => r.unregister()));
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  };
+
   const resetAll = async () => {
     const ok = await confirmDialog({
       title: t('settings.resetAll'),
@@ -261,6 +283,11 @@ export function Settings() {
         </button>
         <button type="button" onClick={() => navigate('/settings/import')} className="card flex w-full items-center justify-between">
           <span className="flex items-center gap-2"><Icon name="download" size={18} /> {t('settings.import')}</span>
+          <Icon name="chevron" size={18} className="text-slate-500" />
+        </button>
+        {/* Force the latest build (clears the cached app + service worker, KEEPS your data). */}
+        <button type="button" onClick={() => void forceUpdate()} className="card flex w-full items-center justify-between">
+          <span className="flex items-center gap-2"><Icon name="timer" size={18} /> {t('settings.forceUpdate')}</span>
           <Icon name="chevron" size={18} className="text-slate-500" />
         </button>
       </section>

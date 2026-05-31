@@ -175,6 +175,8 @@
     "localOnly": "Running locally. Add Firebase keys to enable cloud sync.",
     "import": "Import data",
     "videos": "Video manager",
+    "forceUpdate": "Update the app",
+    "forceUpdateConfirm": "Reload to get the latest version. Your data, downloaded videos and login are kept.",
     "data": "Data",
     "clearDay": "Clear this day's data",
     "clearDayConfirm": "Delete all data logged for {{date}} (workout, food, cardio, weight, photos)?",
