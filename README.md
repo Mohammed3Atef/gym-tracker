@@ -136,6 +136,31 @@ Local-first works with **zero** setup. To add backup/sync across devices:
    Offline edits are flushed on reconnect; conflicts resolve last-write-wins by
    `updatedAt`. Reads always come from the local store, so the UI stays instant.
 
+> Firestore is initialised with `ignoreUndefinedProperties`, so optional empty
+> fields don't break a sync.
+
+## Deploying
+
+### Vercel (hosting)
+Vercel auto-detects Vite (build `npm run build`, output `dir` `dist`). Two things matter:
+
+1. **Environment variables** — add every `VITE_FIREBASE_*` var (from `.env`) in
+   **Vercel → Project → Settings → Environment Variables** for *Production* (and
+   *Preview*). The local `.env` is git-ignored and is **not** used by Vercel
+   builds, so cloud sync only works once these are set there.
+2. [`vercel.json`](vercel.json) (committed) handles the **SPA fallback** (deep
+   links / refresh) and the **cache headers** so the service worker updates
+   without reinstalling (`sw.js`/manifest = no-cache, `/assets/*` = immutable).
+
+Firestore **rules and the database itself still live in Firebase** even when
+hosting on Vercel — deploy rules with the Firebase CLI:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+(Firebase Hosting users can instead use the committed [`firebase.json`](firebase.json).)
+
 ### Firestore schema
 
 ```

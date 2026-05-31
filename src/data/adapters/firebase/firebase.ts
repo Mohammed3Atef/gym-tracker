@@ -38,6 +38,9 @@ export function ensureFirebase(): { app: FirebaseApp; db: Firestore; auth: Auth 
     });
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      // Optional fields (e.g. a photo's note/weight) can be `undefined`; Firestore
+      // rejects undefined values unless we tell it to ignore them.
+      ignoreUndefinedProperties: true,
     });
     // Persist the session (IndexedDB, falling back to localStorage) so the user
     // stays signed in after closing/reopening the app — no re-login each time.

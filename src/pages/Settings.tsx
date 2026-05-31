@@ -275,9 +275,16 @@ export function Settings() {
           <p className="text-sm text-slate-400">{t('settings.localOnly')}</p>
         ) : cloud.user ? (
           <div className="space-y-2">
-            <p className="flex items-center gap-1.5 text-sm font-medium text-brand">
-              <Icon name="check" size={16} /> {cloud.syncing ? t('settings.syncing') : t('settings.synced')}
-            </p>
+            {cloud.error ? (
+              <p className="text-sm font-medium text-danger">
+                <span className="flex items-center gap-1.5"><Icon name="close" size={16} /> {t('cloudState.error')}</span>
+                <span className="mt-1 block break-words text-xs font-normal text-slate-400">{cloud.error}</span>
+              </p>
+            ) : (
+              <p className="flex items-center gap-1.5 text-sm font-medium text-brand">
+                <Icon name="check" size={16} /> {cloud.syncing ? t('settings.syncing') : t('settings.synced')}
+              </p>
+            )}
             <p className="text-sm text-slate-300">{cloud.user.email}</p>
             {cloud.lastSync && <p className="text-xs text-slate-500">{t('settings.lastSync')}: {new Date(cloud.lastSync).toLocaleTimeString()}</p>}
             <div className="flex gap-2">
