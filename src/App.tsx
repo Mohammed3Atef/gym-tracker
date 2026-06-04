@@ -10,16 +10,21 @@ import { useHabits } from '@/stores/habitStore';
 import { useReminders } from '@/services/reminders/reminderStore';
 import { useCloud } from '@/services/auth/cloudStore';
 import { useDay } from '@/stores/dayStore';
+import { useMeasurements } from '@/stores/measurementStore';
 import { setupPersistentStorage } from '@/lib/storage';
 import { AppShell } from '@/components/AppShell';
 import { DialogHost } from '@/components/DialogHost';
 import { Splash } from '@/components/Splash';
 import { Home } from '@/pages/Home';
 import { Workout } from '@/pages/Workout';
+import { RoutineDetail } from '@/pages/RoutineDetail';
+import { ExerciseLibrary } from '@/pages/ExerciseLibrary';
+import { ExerciseDetail } from '@/pages/ExerciseDetail';
 import { WorkoutSession } from '@/pages/WorkoutSession';
 import { Nutrition } from '@/pages/Nutrition';
 import { Cardio } from '@/pages/Cardio';
 import { Progress } from '@/pages/Progress';
+import { History } from '@/pages/History';
 import { ProgressPhotos } from '@/pages/ProgressPhotos';
 import { Measurements } from '@/pages/Measurements';
 import { Settings } from '@/pages/Settings';
@@ -48,6 +53,7 @@ export function App() {
         useNutrition.getState().load(),
         useCardio.getState().load(),
         useVideos.getState().load(),
+        useMeasurements.getState().load(),
       ]);
       await useHabits.getState().refresh();
       await useReminders.getState().load();
@@ -71,11 +77,15 @@ export function App() {
     <DialogHost />
     <Routes>
       <Route path="/" element={<AppShell showDayNav><Home /></AppShell>} />
-      <Route path="/workout" element={<AppShell showDayNav><Workout /></AppShell>} />
+      <Route path="/workout" element={<AppShell><Workout /></AppShell>} />
+      <Route path="/workout/routine/:dayId" element={<AppShell><RoutineDetail /></AppShell>} />
+      <Route path="/workout/library" element={<AppShell><ExerciseLibrary /></AppShell>} />
+      <Route path="/workout/exercise/:exId" element={<AppShell><ExerciseDetail /></AppShell>} />
       <Route path="/workout/session" element={<AppShell hideNav><WorkoutSession /></AppShell>} />
       <Route path="/nutrition" element={<AppShell showDayNav><Nutrition /></AppShell>} />
       <Route path="/cardio" element={<AppShell showDayNav><Cardio /></AppShell>} />
       <Route path="/progress" element={<AppShell><Progress /></AppShell>} />
+      <Route path="/history" element={<AppShell><History /></AppShell>} />
       <Route path="/progress/photos" element={<AppShell><ProgressPhotos /></AppShell>} />
       <Route path="/progress/measurements" element={<AppShell showDayNav><Measurements /></AppShell>} />
       <Route path="/settings" element={<AppShell><Settings /></AppShell>} />

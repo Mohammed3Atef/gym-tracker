@@ -14,8 +14,8 @@ export function ProgressRing({
   value,
   size = 96,
   stroke = 8,
-  color = '#22c55e',
-  trackColor = '#334155',
+  color = '#AE7E56',
+  trackColor = 'rgba(230,226,220,0.12)',
   label,
   sublabel,
 }: ProgressRingProps) {
@@ -43,8 +43,8 @@ export function ProgressRing({
       </svg>
       {(label || sublabel) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {label && <span className="text-lg font-bold leading-none">{label}</span>}
-          {sublabel && <span className="mt-0.5 text-[10px] uppercase text-slate-400">{sublabel}</span>}
+          {label && <span className="font-mono text-base font-medium leading-none">{label}</span>}
+          {sublabel && <span className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-earth-muted">{sublabel}</span>}
         </div>
       )}
     </div>

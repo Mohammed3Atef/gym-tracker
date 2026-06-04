@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { VideoAsset, VideoStatus } from '@/types';
 import { useVideos } from '@/stores/videoStore';
 import { useWorkout } from '@/stores/workoutStore';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
+import { TopBar } from '@/components/TopBar';
 import { VideoPlayerSheet } from '@/components/VideoPlayerSheet';
 
 const STATUS_LABEL: Record<VideoStatus, string> = {
@@ -33,6 +35,7 @@ export function VideoManager() {
   const remove = useVideos((s) => s.remove);
   const setUrl = useVideos((s) => s.setUrl);
   const plan = useWorkout((s) => s.plan);
+  const navigate = useNavigate();
 
   const downloadable = assets.filter((a) => a.kind === 'file');
   const downloadedCount = assets.filter((a) => a.status === 'downloaded').length;
@@ -50,8 +53,8 @@ export function VideoManager() {
   };
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-2xl font-bold">{t('video.title')}</h1>
+    <div className="anim-rise space-y-3">
+      <TopBar title={t('video.title')} eyebrow={t('settings.videos')} onBack={() => navigate('/settings')} />
 
       {downloadable.length > 0 && (
         <div className="card flex items-center justify-between gap-3">

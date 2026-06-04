@@ -20,16 +20,16 @@ export function DayNav() {
   const rtl = i18n.dir() === 'rtl';
 
   return (
-    <div className="mb-2 flex items-center justify-between gap-2 rounded-xl2 bg-surface-card px-2 py-1.5">
+    <div className="mb-3 mt-1 flex items-center justify-between gap-2 rounded-full border border-line bg-surface-card px-2 py-1.5">
       <button type="button" onClick={() => shift(-1)} className="icon-btn h-9 w-9" aria-label="previous day">
         <Icon name="chevron" size={18} className={rtl ? '' : 'rotate-180'} />
       </button>
 
       <label className="relative flex flex-1 cursor-pointer flex-col items-center">
-        <span className="text-sm font-bold leading-tight">
+        <span className="font-mono text-sm font-medium uppercase leading-tight tracking-[0.04em]">
           {isToday ? t('common.today') : shortDate(selected, i18n.language)}
         </span>
-        {!isToday && <span className="text-[10px] text-slate-400">{shortDate(selected, i18n.language)}</span>}
+        {!isToday && <span className="text-[10px] text-earth-muted">{shortDate(selected, i18n.language)}</span>}
         <input
           type="date"
           value={selected}
@@ -41,7 +41,7 @@ export function DayNav() {
       </label>
 
       {!isToday && (
-        <button type="button" onClick={reset} className="rounded-full bg-surface-raised px-3 py-1.5 text-xs font-semibold text-brand-light">
+        <button type="button" onClick={reset} className="rounded-full border border-brand/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-brand">
           {t('common.today')}
         </button>
       )}

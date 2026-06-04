@@ -6,76 +6,109 @@ import { useWorkout } from '@/stores/workoutStore';
 import { useNutrition, computeConsumed } from '@/stores/nutritionStore';
 import { useCardio } from '@/stores/cardioStore';
 import { useHabits } from '@/stores/habitStore';
-import { useReminders } from '@/services/reminders/reminderStore';
-import { useTimer } from '@/stores/timerStore';
-import { Icon, type IconName } from '@/components/Icon';
-import { ProgressRing } from '@/components/ProgressRing';
-import { Sheet } from '@/components/Sheet';
-import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { useDay } from '@/stores/dayStore';
+import { Icon } from '@/components/Icon';
+import { ProgressRing } from '@/components/ProgressRing';
+import { StatTile } from '@/components/StatTile';
+import { BarChart } from '@/components/charts';
+import { SyncStatusBadge } from '@/components/SyncStatusBadge';
+import { logVolume, logSetCount } from '@/lib/calc';
 import { formatDuration } from '@/lib/utils';
+import type { WorkoutDay, WorkoutPlan } from '@/types';
 
-const CHECKLIST_LABELS: Record<string, string> = {
-  workout: 'nav.workout',
-  supplements: 'nutrition.supplements',
-  water: 'nutrition.water',
-  steps: 'cardio.steps',
-  cardio: 'home.cardio',
-  creatine: 'nutrition.creatine',
-};
+function mondayOf(d: Date): Date {
+  const day = d.getDay();
+  const diff = (day + 6) % 7; // Mon=0
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - diff);
+  m.setHours(0, 0, 0, 0);
+  return m;
+}
+function parseDay(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || 'A';
+}
 
 export function Home() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const profile = useSettings((s) => s.profile);
-  const targets = useSettings((s) => s.settings?.targets);
+  const settings = useSettings((s) => s.settings);
+  const targets = settings?.targets;
   const plan = useWorkout((s) => s.plan);
   const logs = useWorkout((s) => s.logs);
   const active = useWorkout((s) => s.active);
   const startSession = useWorkout((s) => s.startSession);
+  const setDay = useDay((s) => s.setDay);
+
   const mealPlan = useNutrition((s) => s.plan);
-  const plannedMeals = mealPlan?.meals.length ?? 0;
   const nutritionLog = useNutrition((s) => s.log);
   const consumed = useMemo(() => computeConsumed(mealPlan, nutritionLog), [mealPlan, nutritionLog]);
-  const latestWeight = useCardio((s) => s.latestWeight());
   const stepsFor = useCardio((s) => s.stepsFor);
-  const logWeight = useCardio((s) => s.logWeight);
-  const checklist = useHabits((s) => s.checklist);
-  const streaks = useHabits((s) => s.streaks);
-  const reminders = useReminders((s) => s.reminders);
-  const startRest = useTimer((s) => s.startRest);
-
-  const [weightOpen, setWeightOpen] = useState(false);
-  const [restOpen, setRestOpen] = useState(false);
-  const [weight, setWeight] = useState('');
-
-  // Suggested workout: rotate through the plan by number of finished sessions.
-  const suggestedDay = useMemo(() => {
-    if (!plan) return null;
-    const finished = logs.filter((l) => l.finished).length;
-    return plan.days[finished % plan.days.length];
-  }, [plan, logs]);
-
-  const eatenMeals = nutritionLog ? Object.values(nutritionLog.mealsEaten).filter(Boolean).length : 0;
   const selectedDay = useDay((s) => s.selected);
   const todaySteps = stepsFor(selectedDay);
+  const checklist = useHabits((s) => s.checklist);
+  const streaks = useHabits((s) => s.streaks);
 
-  const nextReminder = useMemo(() => {
-    const now = new Date();
-    const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    return (
-      reminders
-        .filter((r) => r.enabled && r.time >= hm)
-        .sort((a, b) => a.time.localeCompare(b.time))[0] ?? null
-    );
-  }, [reminders]);
+  const finished = useMemo(() => logs.filter((l) => l.finished), [logs]);
 
-  const missed = checklist
-    ? Object.entries(checklist.items).filter(([, v]) => !v.done).map(([k]) => k)
-    : [];
+  const suggestedDay = useMemo(() => {
+    if (!plan) return null;
+    return plan.days[finished.length % plan.days.length] ?? null;
+  }, [plan, finished.length]);
+
+  const dayMeta = (day: WorkoutDay, p: WorkoutPlan) => {
+    let sets = 0;
+    day.exerciseIds.forEach((id) => {
+      const ex = p.exercises[id];
+      if (ex) sets += ex.workingSets > 0 ? ex.workingSets + 1 : 1;
+    });
+    const restAvg = settings?.restDefaultSec ?? 90;
+    return { ex: day.exerciseIds.length, sets, timeMin: Math.round((sets * (restAvg + 45)) / 60) };
+  };
+
+  // This-week aggregates + 8-week volume trend.
+  const { week, trend, goal } = useMemo(() => {
+    const curMon = mondayOf(new Date()).getTime();
+    const inWeek = finished.filter((l) => mondayOf(parseDay(l.date)).getTime() === curMon);
+    const buckets = Array.from({ length: 8 }, () => 0);
+    finished.forEach((l) => {
+      const wkMon = mondayOf(parseDay(l.date)).getTime();
+      const diffWeeks = Math.round((curMon - wkMon) / (7 * 86_400_000));
+      const idx = 7 - diffWeeks;
+      if (idx >= 0 && idx < 8) buckets[idx] += logVolume(l);
+    });
+    return {
+      week: {
+        workouts: inWeek.length,
+        sets: inWeek.reduce((n, l) => n + logSetCount(l), 0),
+        volume: inWeek.reduce((v, l) => v + logVolume(l), 0),
+        timeMin: Math.round(inWeek.reduce((s, l) => s + l.durationSec, 0) / 60),
+      },
+      trend: buckets.map((v, i) => ({
+        label: i === 7 ? t('gt.now') : `-${7 - i}w`,
+        value: v,
+      })),
+      goal: plan?.days.length ?? 4,
+    };
+  }, [finished, plan, t]);
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return t('gt.greetingMorning');
+    if (h < 18) return t('gt.greetingAfternoon');
+    return t('gt.greetingEvening');
+  }, [t]);
+
+  const recent = finished.slice(0, 3);
+  const remaining = Math.max(0, goal - week.workouts);
+
+  const [hover, setHover] = useState(false);
 
   const startSuggested = async () => {
-    if (active) {
+    if (active && !active.finished) {
       navigate('/workout/session');
       return;
     }
@@ -85,115 +118,180 @@ export function Home() {
     }
   };
 
-  const saveWeight = async () => {
-    if (weight) await logWeight(Number(weight));
-    setWeight('');
-    setWeightOpen(false);
+  const openSession = (date: string) => {
+    setDay(date);
+    navigate('/workout/session');
   };
 
-  const quick: { icon: IconName; label: string; onClick: () => void }[] = [
-    { icon: 'play', label: t('home.quick.startWorkout'), onClick: () => void startSuggested() },
-    { icon: 'timer', label: t('home.quick.restTimer'), onClick: () => setRestOpen(true) },
-    { icon: 'activity', label: t('home.quick.startCardio'), onClick: () => navigate('/cardio') },
-    { icon: 'scale', label: t('home.quick.addWeight'), onClick: () => setWeightOpen(true) },
-  ];
+  const dateEyebrow = new Date().toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 
   return (
-    <div className="space-y-4">
-      <header className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-400">{t('common.today')}</p>
-          <h1 className="text-2xl font-bold">{t('home.greeting', { name: profile?.name ?? '' })}</h1>
+    <div className="anim-rise space-y-4 pt-2">
+      {/* Greeting */}
+      <header className="flex items-start justify-between pt-2">
+        <div className="min-w-0">
+          <p className="eyebrow mb-2">{dateEyebrow}</p>
+          <h1 className="h1">
+            {greeting}
+            <br />
+            <span className="text-earth-muted">{profile?.name ?? ''}.</span>
+          </h1>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-1 rounded-full bg-surface-card px-3 py-1.5">
-            <Icon name="flame" size={18} className="text-warn" />
-            <span className="font-bold">{streaks.overall.current}</span>
-          </div>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="flex h-[42px] w-[42px] items-center justify-center rounded-full border border-line bg-surface-card font-mono text-xs font-medium text-brand"
+            aria-label={t('gt.profile')}
+          >
+            {initials(profile?.name ?? 'A')}
+          </button>
           <SyncStatusBadge />
         </div>
       </header>
 
-      {/* Daily summary */}
-      <div className="card">
-        <div className="flex items-center gap-4">
-          <ProgressRing value={(checklist?.completionPct ?? 0) / 100} label={`${checklist?.completionPct ?? 0}%`} sublabel={t('home.completion')} />
-          <div className="flex-1">
-            <h2 className="mb-1 font-bold">{t('home.dailyChecklist')}</h2>
-            {missed.length === 0 ? (
-              <p className="text-sm text-brand">✓ {t('common.done')}</p>
-            ) : (
-              <p className="text-sm text-slate-400">
-                {t('home.missed')}: {missed.map((k) => t(CHECKLIST_LABELS[k] ?? 'nutrition.eaten')).filter((v, i, a) => a.indexOf(v) === i).slice(0, 4).join(' · ')}
-              </p>
-            )}
-            <p className="mt-2 text-xs text-slate-500">
-              {t('home.nextReminder')}: {nextReminder ? `${nextReminder.time} — ${nextReminder.label}` : t('home.noReminder')}
-            </p>
-          </div>
+      {/* Weekly goal */}
+      <div className="card flex items-center gap-4">
+        <ProgressRing
+          value={goal ? week.workouts / goal : 0}
+          size={64}
+          stroke={6}
+          label={`${week.workouts}/${goal}`}
+        />
+        <div className="flex-1">
+          <h2 className="h2">{t('gt.weeklyGoal')}</h2>
+          <p className="mt-0.5 text-[13px] text-earth-muted">
+            {remaining > 0 ? t('gt.toGo', { n: remaining }) : t('gt.goalReached')}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Icon name="flame" size={18} className="text-brand" />
+          <span className="font-mono text-lg font-medium">{streaks.overall.current}</span>
         </div>
       </div>
 
-      {/* Quick actions */}
+      {/* Up next hero */}
+      {suggestedDay && plan && (
+        <button
+          type="button"
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onClick={() => void startSuggested()}
+          className="relative w-full overflow-hidden rounded-hero border border-brand/25 p-6 text-start transition-transform active:scale-[0.99]"
+          style={{
+            background:
+              'radial-gradient(120% 120% at 85% 0%, rgba(174,126,86,0.22), transparent 50%), linear-gradient(150deg,#3a3d2e,#262820,#15150d)',
+          }}
+        >
+          <p className="eyebrow mb-3">
+            {t('gt.upNext')} · {t('gt.recommended')}
+          </p>
+          <h2 className="font-display text-[28px] font-bold leading-tight tracking-[-0.02em]">
+            {active && !active.finished ? t('workout.resumeSession') : suggestedDay.title}
+          </h2>
+          <p className="mt-1 text-sm text-earth-muted">{suggestedDay.focus}</p>
+          {(() => {
+            const m = dayMeta(suggestedDay, plan);
+            return (
+              <div className="mt-4 flex items-center gap-5 font-mono text-[11.5px] text-earth-muted">
+                <span className="flex items-center gap-1.5">
+                  <Icon name="list" size={14} /> {m.ex}&nbsp;{t('gt.exercises').toLowerCase()}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon name="bolt" size={14} /> {m.sets}&nbsp;{t('common.sets')}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon name="timer" size={14} /> ~{m.timeMin}&nbsp;{t('common.min')}
+                </span>
+              </div>
+            );
+          })()}
+          <span className="btn-light mt-5 w-full" style={{ transform: hover ? 'translateY(-1px)' : undefined }}>
+            <Icon name="play" size={15} /> {t('gt.startWorkout')}
+          </span>
+        </button>
+      )}
+
+      {/* This week */}
+      <div className="sec-head">
+        <h2 className="h2">{t('gt.thisWeek')}</h2>
+      </div>
       <div className="grid grid-cols-2 gap-3">
-        {quick.map((q) => (
-          <button key={q.label} type="button" onClick={q.onClick} className="btn-primary btn-lg flex-col !gap-1 py-4">
-            <Icon name={q.icon} size={24} />
-            <span className="text-sm">{q.label}</span>
-          </button>
-        ))}
+        <StatTile icon="dumbbell" value={week.workouts} label={t('gt.workouts')} />
+        <StatTile icon="bolt" value={week.sets} label={t('gt.setsLogged')} />
+        <StatTile icon="arrowUp" value={(week.volume / 1000).toFixed(1)} unit="t" label={t('gt.volume')} />
+        <StatTile icon="timer" value={week.timeMin} unit="m" label={t('gt.time')} />
       </div>
 
-      {/* Today's workout */}
-      <button type="button" onClick={() => navigate('/workout')} className="card flex w-full items-center justify-between text-start">
-        <div>
-          <p className="text-xs uppercase text-slate-400">{t('home.todaysWorkout')}</p>
-          <p className="text-lg font-bold">{active ? t('workout.resumeSession') : suggestedDay?.title ?? t('home.restDay')}</p>
-          {suggestedDay && <p className="text-xs text-slate-500">{suggestedDay.focus}</p>}
+      {/* Today (our daily tracking, folded into the design) */}
+      <button type="button" onClick={() => navigate('/nutrition')} className="card-tap mt-3 flex w-full items-center gap-4 text-start">
+        <ProgressRing
+          value={checklist ? checklist.completionPct / 100 : 0}
+          size={56}
+          stroke={6}
+          label={`${checklist?.completionPct ?? 0}%`}
+        />
+        <div className="flex-1">
+          <h2 className="h2">{t('home.dailyChecklist')}</h2>
+          <p className="mt-0.5 font-mono text-[11.5px] text-earth-muted">
+            {Math.round(consumed.calories)} / {targets?.calories ?? 0} kcal · {todaySteps.toLocaleString()} {t('home.steps').toLowerCase()}
+          </p>
         </div>
-        <Icon name="dumbbell" size={28} className="text-brand" />
+        <Icon name="chevron" size={18} className="text-earth-subtle" />
       </button>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <button type="button" onClick={() => navigate('/nutrition')} className="card text-start">
-          <p className="text-xs uppercase text-slate-400">{t('home.todaysNutrition')}</p>
-          <p className="text-lg font-bold">{Math.round(consumed.calories)} <span className="text-sm font-normal text-slate-400">/ {targets?.calories}</span></p>
-          <p className="text-xs text-slate-500">{eatenMeals}/{plannedMeals} {t('nutrition.eaten')} · P{Math.round(consumed.protein)}</p>
-        </button>
-        <button type="button" onClick={() => setWeightOpen(true)} className="card text-start">
-          <p className="text-xs uppercase text-slate-400">{t('home.bodyWeight')}</p>
-          <p className="text-lg font-bold">{latestWeight ?? profile?.weightKg ?? '–'} <span className="text-sm font-normal text-slate-400">{t('common.kg')}</span></p>
-          <p className="text-xs text-slate-500">{t('home.quick.addWeight')}</p>
-        </button>
-        <div className="card">
-          <p className="text-xs uppercase text-slate-400">{t('home.steps')}</p>
-          <p className="text-lg font-bold">{todaySteps.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">/ {targets?.steps.toLocaleString()}</p>
+      {/* Volume trend */}
+      {finished.length > 0 && (
+        <div className="card mt-3">
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="ui-label">{t('gt.volumeTrend')}</span>
+            <span className="font-mono text-[11px] text-brand">{t('gt.last8weeks')}</span>
+          </div>
+          <BarChart data={trend} format={(v) => `${Math.round(v / 1000)}t`} />
         </div>
-        <div className="card">
-          <p className="text-xs uppercase text-slate-400">{t('home.streak')}</p>
-          <p className="text-lg font-bold">{streaks.workout.current} 🏋️</p>
-          <p className="text-xs text-slate-500">{t('common.previous')}: {streaks.workout.longest}</p>
-        </div>
-      </div>
+      )}
 
-      <Sheet open={weightOpen} onClose={() => setWeightOpen(false)} title={t('home.logWeightTitle')}>
-        <div className="space-y-3">
-          <input className="input text-center text-lg" inputMode="decimal" placeholder={String(latestWeight ?? profile?.weightKg ?? 0)} value={weight} onChange={(e) => setWeight(e.target.value)} />
-          <button type="button" onClick={() => void saveWeight()} className="btn-primary w-full">{t('common.save')}</button>
-        </div>
-      </Sheet>
-
-      <Sheet open={restOpen} onClose={() => setRestOpen(false)} title={t('home.quick.restTimer')}>
-        <div className="grid grid-cols-3 gap-2">
-          {[60, 90, 120, 150, 180, 240].map((sec) => (
-            <button key={sec} type="button" onClick={() => { startRest(sec); setRestOpen(false); }} className="btn-ghost btn-lg">
-              {formatDuration(sec)}
+      {/* Recent */}
+      {recent.length > 0 && (
+        <>
+          <div className="sec-head">
+            <h2 className="h2">{t('gt.recent')}</h2>
+            <button type="button" className="sec-link" onClick={() => navigate('/history')}>
+              {t('gt.viewAll')}
             </button>
-          ))}
-        </div>
-      </Sheet>
+          </div>
+          <div>
+            {recent.map((l) => {
+              const day = plan?.days.find((d) => d.id === l.dayId);
+              return (
+                <button key={l.id} type="button" onClick={() => openSession(l.date)} className="row w-full text-start">
+                  <span className="row-av">
+                    <Icon name="dumbbell" size={20} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-medium tracking-[-0.01em]">{day?.title ?? t('workout.session')}</p>
+                    <p className="mt-0.5 font-mono text-[11.5px] text-earth-muted">
+                      {parseDay(l.date).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'short' })}
+                      {' · '}
+                      {formatDuration(l.durationSec)} · {(logVolume(l) / 1000).toFixed(1)}t
+                    </p>
+                  </div>
+                  <Icon name="chevron" size={18} className="text-earth-subtle" />
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Start empty */}
+      <button type="button" onClick={() => navigate('/workout')} className="btn-ghost mt-4 w-full">
+        <Icon name="plus" size={15} /> {t('gt.startEmpty')}
+      </button>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { VideoAsset } from '@/types';
@@ -6,7 +6,6 @@ import { useWorkout } from '@/stores/workoutStore';
 import { useSettings } from '@/stores/settingsStore';
 import { useTimer } from '@/stores/timerStore';
 import { useVideos } from '@/stores/videoStore';
-import { confirmDialog } from '@/stores/dialogStore';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useElapsed } from '@/hooks/useElapsed';
 import { ExerciseCard } from '@/components/ExerciseCard';
@@ -14,10 +13,11 @@ import { RestTimerBar } from '@/components/RestTimerBar';
 import { VideoPlayerSheet } from '@/components/VideoPlayerSheet';
 import { Sheet } from '@/components/Sheet';
 import { Icon } from '@/components/Icon';
-import { formatDuration, parseRestInput } from '@/lib/utils';
+import { StatTile } from '@/components/StatTile';
+import { formatDuration } from '@/lib/utils';
+import { logVolume, logSetCount, logExerciseCount } from '@/lib/calc';
+import { muscleColor, muscleLabel } from '@/lib/muscle';
 import { HAPTIC, vibrate } from '@/lib/haptics';
-
-const REST_PRESETS = [45, 60, 90, 120, 150, 180];
 
 export function WorkoutSession() {
   const { t } = useTranslation();
@@ -29,8 +29,11 @@ export function WorkoutSession() {
   const toggleSetDone = useWorkout((s) => s.toggleSetDone);
   const addSet = useWorkout((s) => s.addSet);
   const removeSet = useWorkout((s) => s.removeSet);
+  const addExercise = useWorkout((s) => s.addExercise);
+  const removeExercise = useWorkout((s) => s.removeExercise);
   const beginTimer = useWorkout((s) => s.beginTimer);
   const discardDraft = useWorkout((s) => s.discardDraft);
+  const discardActive = useWorkout((s) => s.discardActive);
   const finishSession = useWorkout((s) => s.finishSession);
   const previousFor = useWorkout((s) => s.previousFor);
 
@@ -41,38 +44,45 @@ export function WorkoutSession() {
 
   const [videoAsset, setVideoAsset] = useState<VideoAsset | null>(null);
   const [videoTitle, setVideoTitle] = useState('');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [restOpen, setRestOpen] = useState(false);
-  const [restSec, setRestSec] = useState(restDefault);
-  const [customRest, setCustomRest] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [summary, setSummary] = useState<null | {
+    durationSec: number;
+    volume: number;
+    sets: number;
+    exercises: number;
+  }>(null);
   const didInit = useRef(false);
 
   const running = !!active?.startedAt && !active?.finished;
   useWakeLock(running);
-  // Tick only while a live session is running; finished workouts show the saved time.
   const ticking = useElapsed(active && !active.finished ? active.startedAt : null);
   const elapsed = active?.finished ? active.durationSec : ticking;
 
   useEffect(() => {
     if (!active || didInit.current) return;
     didInit.current = true;
-    const firstOpen = active.exercises.find((e) => !e.done) ?? active.exercises[0];
-    if (firstOpen) setExpandedIds(new Set([firstOpen.exerciseId]));
   }, [active]);
 
-  const toggleExpanded = (id: string) =>
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const totalSets = active?.exercises.reduce((a, e) => a + e.sets.length, 0) ?? 0;
+  const doneSets = active?.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0) ?? 0;
+  const runningVolume = useMemo(() => (active ? logVolume(active) : 0), [active]);
+
+  const availableToAdd = useMemo(() => {
+    if (!plan || !active) return [];
+    const inSession = new Set(active.exercises.map((e) => e.exerciseId));
+    const q = search.trim().toLowerCase();
+    return Object.values(plan.exercises)
+      .filter((ex) => !inSession.has(ex.id))
+      .filter((ex) => !q || ex.name.toLowerCase().includes(q) || ex.targetMuscle.toLowerCase().includes(q));
+  }, [plan, active, search]);
 
   if (!plan || !active) {
     return (
-      <div className="space-y-4 pt-10 text-center">
-        <p className="text-slate-400">{t('progress.noData')}</p>
-        <button type="button" onClick={() => navigate('/workout')} className="btn-primary">
+      <div className="space-y-4 pt-16 text-center">
+        <p className="text-earth-muted">{t('progress.noData')}</p>
+        <button type="button" onClick={() => navigate('/workout')} className="btn-primary mx-auto">
           {t('nav.workout')}
         </button>
       </div>
@@ -80,13 +90,9 @@ export function WorkoutSession() {
   }
 
   const day = plan.days.find((d) => d.id === active.dayId);
-  const totalSets = active.exercises.reduce((a, e) => a + e.sets.length, 0);
-  const doneSets = active.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0);
-  // The session has begun (timer started or already finished) — until then
-  // nothing is recorded and "Finish" is hidden.
   const recording = !!active.startedAt || active.finished;
 
-  const goBack = () => {
+  const minimize = () => {
     discardDraft(); // no-op if already started/saved
     navigate('/workout');
   };
@@ -96,9 +102,8 @@ export function WorkoutSession() {
     const wasDone = ex?.sets.find((s) => s.setIndex === setIndex)?.done;
     toggleSetDone(exerciseId, setIndex);
     if (!wasDone) {
-      // Completing a set: haptic + auto-start the rest timer with the chosen duration.
       vibrate(HAPTIC.success);
-      startRest(restSec);
+      startRest(restDefault);
     }
   };
 
@@ -107,51 +112,67 @@ export function WorkoutSession() {
     setVideoTitle(plan.exercises[exerciseId]?.name ?? '');
   };
 
-  const pickRest = (sec: number) => {
-    setRestSec(sec);
-    startRest(sec);
-    setRestOpen(false);
-  };
-
-  const applyCustomRest = () => {
-    const sec = parseRestInput(customRest);
-    if (sec && sec > 0) {
-      setCustomRest('');
-      pickRest(sec);
-    }
-  };
-
-  const handleFinish = async () => {
-    const ok = await confirmDialog({
-      title: t('workout.finishWorkout'),
-      message: t('workout.confirmFinish'),
-      confirmLabel: t('common.finish'),
-    });
-    if (!ok) return;
+  const doSave = async () => {
     await finishSession();
-    navigate('/progress');
+    setSummary({
+      durationSec: active.startedAt ? Math.round((Date.now() - active.startedAt) / 1000) : active.durationSec,
+      volume: logVolume(active),
+      sets: logSetCount(active),
+      exercises: logExerciseCount(active),
+    });
+    setConfirmOpen(false);
   };
+
+  const doDiscard = async () => {
+    setConfirmOpen(false);
+    await discardActive();
+    navigate('/');
+  };
+
+  // --- Finish summary (full-screen) ---
+  if (summary) {
+    return (
+      <div className="anim-fade flex min-h-[80vh] flex-col items-center justify-center px-2 text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success text-white shadow-[0_0_40px_rgba(46,93,60,0.6)]">
+          <Icon name="check" size={36} />
+        </div>
+        <p className="eyebrow mt-7">{t('gt.workoutComplete')}</p>
+        <h1 className="h1 mt-2">
+          {t('gt.strongSession')} <span className="font-serif italic text-brand">{t('gt.logged')}</span>
+        </h1>
+        <div className="mt-8 grid w-full max-w-sm grid-cols-2 gap-3">
+          <StatTile icon="timer" value={formatDuration(summary.durationSec)} label={t('gt.duration')} />
+          <StatTile icon="arrowUp" value={(summary.volume / 1000).toFixed(1)} unit="t" label={t('gt.volume')} />
+          <StatTile icon="bolt" value={summary.sets} label={t('gt.setsDone')} />
+          <StatTile icon="list" value={summary.exercises} label={t('gt.exercises')} />
+        </div>
+        <button type="button" onClick={() => navigate('/')} className="btn-primary mt-8 w-full max-w-sm">
+          {t('common.done')}
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3 pb-24">
-      {/* Sticky session header */}
-      <header className="sticky top-0 z-30 -mx-4 mb-1 flex items-center justify-between gap-2 bg-surface/95 px-4 py-2 backdrop-blur">
-        <button type="button" onClick={goBack} className="icon-btn h-10 w-10" aria-label="back">
-          <Icon name="chevron" size={18} className="rotate-180" />
+    <div className="-mx-5 flex min-h-screen flex-col">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-line bg-black px-5 py-3">
+        <button type="button" onClick={minimize} className="icon-btn h-[42px] w-[42px]" aria-label="minimize">
+          <Icon name="chevronDown" size={20} />
         </button>
         <div className="flex flex-col items-center">
-          <p className="text-xs text-slate-400">{day?.title} · {doneSets}/{totalSets} {t('common.sets')}</p>
+          <p className="eyebrow">{day?.title ?? t('workout.session')}</p>
           {recording ? (
-            <p className="font-mono text-lg font-bold tabular-nums text-brand-light">{formatDuration(elapsed)}</p>
+            <p className="font-mono text-[22px] font-medium tabular-nums">{formatDuration(elapsed)}</p>
           ) : (
-            <span className="text-[10px] text-slate-500">{t('workout.notStarted')}</span>
+            <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-earth-subtle">{t('workout.notStarted')}</p>
           )}
         </div>
         {recording ? (
           <button
             type="button"
-            onClick={() => void handleFinish()}
-            className="flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-slate-950 transition-transform active:scale-95"
+            onClick={() => setConfirmOpen(true)}
+            className="flex h-[42px] items-center rounded-full bg-brand px-5 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-white transition-transform active:scale-95"
           >
             {t('common.finish')}
           </button>
@@ -159,14 +180,26 @@ export function WorkoutSession() {
           <button
             type="button"
             onClick={beginTimer}
-            className="flex h-10 items-center gap-1 rounded-xl bg-brand px-4 text-sm font-bold text-slate-950 transition-transform active:scale-95"
+            className="flex h-[42px] items-center gap-1.5 rounded-full bg-brand px-5 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-white transition-transform active:scale-95"
           >
-            <Icon name="play" size={16} /> {t('common.start')}
+            <Icon name="play" size={14} /> {t('common.start')}
           </button>
         )}
       </header>
 
-      <div className="space-y-3">
+      {/* Progress */}
+      <div className="px-5 py-3">
+        <div className="prog">
+          <span style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
+        </div>
+        <div className="mt-2 flex justify-between font-mono text-[11.5px] text-earth-muted">
+          <span>{t('gt.setsCount', { done: doneSets, total: totalSets })}</span>
+          <span>{(runningVolume / 1000).toFixed(1)}t</span>
+        </div>
+      </div>
+
+      {/* Exercise blocks */}
+      <div className="flex-1 space-y-3 px-5 pb-44">
         {active.exercises.map((log) => {
           const ex = plan.exercises[log.exerciseId];
           if (!ex) return null;
@@ -176,74 +209,84 @@ export function WorkoutSession() {
               exercise={ex}
               log={log}
               prev={previousFor(log.exerciseId)}
-              expanded={expandedIds.has(log.exerciseId)}
-              onToggle={() => toggleExpanded(log.exerciseId)}
               onUpdateSet={(setIndex, patch) => updateSet(log.exerciseId, setIndex, patch)}
               onToggleDone={(setIndex) => handleToggle(log.exerciseId, setIndex)}
               onAddSet={() => addSet(log.exerciseId)}
               onRemoveSet={(setIndex) => removeSet(log.exerciseId, setIndex)}
               onVideo={() => openVideo(log.exerciseId)}
+              onRemoveExercise={active.exercises.length > 1 ? () => removeExercise(log.exerciseId) : undefined}
             />
           );
         })}
+
+        <button type="button" onClick={() => setPickerOpen(true)} className="btn-ghost w-full">
+          <Icon name="plus" size={15} /> {t('gt.addExercise')}
+        </button>
       </div>
 
-      {recording ? (
-        <button type="button" onClick={() => void handleFinish()} className="btn-primary btn-lg mt-2 w-full">
-          <Icon name="check" size={20} /> {t('workout.finishWorkout')}
-        </button>
-      ) : (
-        <button type="button" onClick={beginTimer} className="btn-primary btn-lg mt-2 w-full">
-          <Icon name="play" size={20} /> {t('common.start')}
-        </button>
+      {/* Floating rest timer */}
+      {timerOn && (
+        <div className="fixed inset-x-0 bottom-6 z-30 flex justify-center px-5">
+          <RestTimerBar />
+        </div>
       )}
 
-      {/* Fixed bottom bar: rest timer when running, otherwise a "rest" button that
-          opens the duration picker. The session timer stays in the header above. */}
-      <div
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-white/5 bg-surface-card/95 px-3 py-2 backdrop-blur"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
-      >
-        <div className="mx-auto flex max-w-md items-center justify-center gap-2">
-          {timerOn ? (
-            <RestTimerBar />
-          ) : (
-            <button type="button" onClick={() => setRestOpen(true)} className="btn-ghost h-11 w-full text-sm">
-              <Icon name="timer" size={18} /> {t('workout.rest')} · {formatDuration(restSec)}
-            </button>
-          )}
+      {/* Finish confirm */}
+      <Sheet open={confirmOpen} onClose={() => setConfirmOpen(false)} title={t('gt.finishWorkoutQ')}>
+        <p className="mb-5 font-mono text-[13px] text-earth-muted">
+          {t('gt.setsCount', { done: doneSets, total: totalSets })} · {(runningVolume / 1000).toFixed(1)}t · {formatDuration(elapsed)}
+        </p>
+        <div className="space-y-2.5">
+          <button type="button" onClick={() => void doSave()} className="btn-primary w-full">
+            {t('gt.saveWorkout')}
+          </button>
+          <button type="button" onClick={() => setConfirmOpen(false)} className="btn-ghost w-full">
+            {t('gt.keepGoing')}
+          </button>
+          <button type="button" onClick={() => void doDiscard()} className="btn-danger w-full">
+            {t('gt.discard')}
+          </button>
         </div>
-      </div>
+      </Sheet>
 
-      {/* Rest duration picker */}
-      <Sheet open={restOpen} onClose={() => setRestOpen(false)} title={t('workout.restTimer')}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            {REST_PRESETS.map((sec) => (
-              <button
-                key={sec}
-                type="button"
-                onClick={() => pickRest(sec)}
-                className={`btn-ghost btn-lg ${sec === restSec ? '!bg-brand !text-slate-950' : ''}`}
-              >
-                {formatDuration(sec)}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              className="input flex-1 text-center"
-              inputMode="numeric"
-              placeholder={t('workout.restCustom')}
-              value={customRest}
-              onChange={(e) => setCustomRest(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && applyCustomRest()}
-            />
-            <button type="button" onClick={applyCustomRest} className="btn-primary px-4">
-              {t('common.start')}
-            </button>
-          </div>
+      {/* Exercise picker */}
+      <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title={t('gt.addExercise')}>
+        <div className="relative mb-3">
+          <span className="absolute inset-y-0 left-3 flex items-center text-earth-subtle rtl:left-auto rtl:right-3">
+            <Icon name="search" size={18} />
+          </span>
+          <input
+            className="input pl-10 rtl:pl-4 rtl:pr-10"
+            placeholder={t('gt.searchExercises')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+        <ul className="max-h-[50vh] overflow-y-auto">
+          {availableToAdd.map((ex) => (
+            <li key={ex.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  addExercise(ex.id);
+                  setPickerOpen(false);
+                  setSearch('');
+                }}
+                className="row w-full text-start"
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: muscleColor(ex.targetMuscle) }} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-medium">{ex.name}</p>
+                  <p className="font-mono text-[11.5px] text-earth-muted">{muscleLabel(ex.targetMuscle, t)}</p>
+                </div>
+                <Icon name="plus" size={18} className="text-brand" />
+              </button>
+            </li>
+          ))}
+          {availableToAdd.length === 0 && (
+            <li className="py-6 text-center font-mono text-[12px] text-earth-subtle">—</li>
+          )}
+        </ul>
       </Sheet>
 
       <VideoPlayerSheet asset={videoAsset} title={videoTitle} onClose={() => setVideoAsset(null)} />

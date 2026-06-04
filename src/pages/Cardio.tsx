@@ -8,6 +8,7 @@ import { useWakeLock } from '@/hooks/useWakeLock';
 import { useDay } from '@/stores/dayStore';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
+import { TopBar } from '@/components/TopBar';
 import { formatDuration, shortDate } from '@/lib/utils';
 
 const TYPES: CardioType[] = ['walking', 'treadmill', 'running', 'cycling', 'other'];
@@ -59,8 +60,8 @@ export function Cardio() {
     todaySteps >= (targets?.steps ?? Infinity) || todayCardioMin >= (targets?.cardioMinutes ?? Infinity);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t('cardio.title')}</h1>
+    <div className="anim-rise space-y-4">
+      <TopBar title={t('cardio.title')} eyebrow={t('nav.cardio')} />
 
       {/* Combined daily activity goal — done when EITHER target is met. */}
       <div className={`card ${activityMet ? 'ring-1 ring-brand/40' : ''}`}>
@@ -110,7 +111,7 @@ export function Cardio() {
               key={ty}
               type="button"
               onClick={() => setType(ty)}
-              className={`rounded-full px-3 py-1.5 text-sm ${type === ty ? 'bg-brand text-slate-950' : 'bg-surface-raised text-slate-300'}`}
+              className={`chip ${type === ty ? 'chip-on' : ''}`}
             >
               {t(`cardio.types.${ty}`)}
             </button>

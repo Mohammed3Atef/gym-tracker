@@ -35,6 +35,8 @@ interface WorkoutState {
   toggleSetDone: (exerciseId: string, setIndex: number) => void;
   addSet: (exerciseId: string) => void;
   removeSet: (exerciseId: string, setIndex: number) => void;
+  addExercise: (exerciseId: string) => void;
+  removeExercise: (exerciseId: string) => void;
   finishSession: () => Promise<void>;
   previousFor: (exerciseId: string) => PrevPerf | null;
 }
@@ -230,6 +232,39 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       return { ...ex, sets, done: sets.length > 0 && sets.every((s) => s.done) };
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
+    if (next.startedAt) persist(next);
+  },
+
+  /** Append an exercise (from the plan catalog) to the active session. */
+  addExercise(exerciseId) {
+    const { active, plan } = get();
+    if (!active || !plan) return;
+    if (active.exercises.some((e) => e.exerciseId === exerciseId)) return;
+    const ex = plan.exercises[exerciseId];
+    if (!ex) return;
+    const newLog: ExerciseLog = {
+      exerciseId,
+      sets: [
+        { setIndex: 0, type: 'working', targetReps: ex.repRange, actualReps: null, weightKg: null, rpe: null, done: false },
+      ],
+      done: false,
+    };
+    const next = { ...active, exercises: [...active.exercises, newLog], updatedAt: Date.now(), dirty: true };
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
+    if (next.startedAt) persist(next);
+  },
+
+  /** Remove an exercise from the active session. */
+  removeExercise(exerciseId) {
+    const { active } = get();
+    if (!active) return;
+    const next = {
+      ...active,
+      exercises: active.exercises.filter((e) => e.exerciseId !== exerciseId),
+      updatedAt: Date.now(),
+      dirty: true,
+    };
     set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
     if (next.startedAt) persist(next);
   },

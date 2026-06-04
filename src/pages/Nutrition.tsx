@@ -7,6 +7,7 @@ import { useLocalized } from '@/hooks/useLocalized';
 import { Icon } from '@/components/Icon';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Sheet } from '@/components/Sheet';
+import { TopBar } from '@/components/TopBar';
 import { uid } from '@/lib/utils';
 
 export function Nutrition() {
@@ -48,10 +49,10 @@ export function Nutrition() {
   };
 
   const macros = [
-    { key: 'calories', value: consumed.calories, target: targets.calories, color: '#22c55e' },
-    { key: 'protein', value: consumed.protein, target: targets.protein, color: '#38bdf8' },
-    { key: 'carbs', value: consumed.carbs, target: targets.carbs, color: '#f59e0b' },
-    { key: 'fats', value: consumed.fats, target: targets.fats, color: '#ef4444' },
+    { key: 'calories', value: consumed.calories, target: targets.calories, color: '#AE7E56' },
+    { key: 'protein', value: consumed.protein, target: targets.protein, color: '#D4A46A' },
+    { key: 'carbs', value: consumed.carbs, target: targets.carbs, color: '#BF6E4E' },
+    { key: 'fats', value: consumed.fats, target: targets.fats, color: '#2E5D3C' },
   ] as const;
 
   const submitEditor = async () => {
@@ -79,8 +80,8 @@ export function Nutrition() {
   const waterPct = Math.min(1, log.waterMl / targets.waterMl);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t('nutrition.title')}</h1>
+    <div className="anim-rise space-y-4">
+      <TopBar title={t('nutrition.title')} eyebrow={t('nav.nutrition')} />
 
       {/* Macro rings */}
       <div className="card grid grid-cols-4 gap-1">

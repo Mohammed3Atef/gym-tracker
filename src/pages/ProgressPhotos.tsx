@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PhotoPose, ProgressPhoto } from '@/types';
+import { useNavigate } from 'react-router-dom';
 import { usePhotos } from '@/stores/photoStore';
 import { Icon } from '@/components/Icon';
+import { TopBar } from '@/components/TopBar';
 
 const POSES: PhotoPose[] = ['front', 'side', 'back'];
 
@@ -32,6 +34,7 @@ export function ProgressPhotos() {
   const remove = usePhotos((s) => s.remove);
   const loaded = usePhotos((s) => s.loaded);
 
+  const navigate = useNavigate();
   const [pose, setPose] = useState<PhotoPose>('front');
   const [compare, setCompare] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -78,14 +81,14 @@ export function ProgressPhotos() {
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t('progress.photos')}</h1>
+    <div className="anim-rise space-y-4">
+      <TopBar title={t('progress.photos')} eyebrow={t('gt.body')} onBack={() => navigate('/progress')} />
 
       {/* Capture */}
       <div className="card">
         <div className="mb-3 flex gap-1.5">
           {POSES.map((p) => (
-            <button key={p} type="button" onClick={() => setPose(p)} className={`flex-1 rounded-xl py-2 text-sm ${pose === p ? 'bg-brand text-slate-950' : 'bg-surface-raised text-slate-300'}`}>
+            <button key={p} type="button" onClick={() => setPose(p)} className={`flex-1 py-2 ${pose === p ? 'chip chip-on' : 'chip'}`}>
               {t(`progress.${p}`)}
             </button>
           ))}

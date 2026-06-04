@@ -24,9 +24,20 @@ type IconName =
   | 'close'
   | 'edit'
   | 'chevron'
+  | 'chevronLeft'
+  | 'chevronDown'
   | 'pill'
   | 'scale'
-  | 'info';
+  | 'info'
+  | 'calendar'
+  | 'user'
+  | 'trophy'
+  | 'bolt'
+  | 'arrowUp'
+  | 'search'
+  | 'ruler'
+  | 'list'
+  | 'target';
 
 const PATHS: Record<IconName, string> = {
   home: 'M3 11.5 12 4l9 7.5M5 10v10h14V10',
@@ -52,9 +63,20 @@ const PATHS: Record<IconName, string> = {
   close: 'M6 6l12 12M18 6 6 18',
   edit: 'M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4',
   chevron: 'M9 6l6 6-6 6',
+  chevronLeft: 'M15 6l-6 6 6 6',
+  chevronDown: 'M6 9l6 6 6-6',
   pill: 'M10.5 3.5a4 4 0 0 1 6 6l-7 7a4 4 0 0 1-6-6zM8 8l8 8',
   scale: 'M12 3a3 3 0 0 0-3 3h6a3 3 0 0 0-3-3zM5 6h14l2 14H3z',
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 11v5M12 7.5h.01',
+  calendar: 'M4 5h16v15H4zM4 9h16M8 3v4M16 3v4',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  trophy: 'M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M9 19h6M10 14.5V19M14 14.5V19',
+  bolt: 'M13 3 4 14h7l-1 7 9-11h-7z',
+  arrowUp: 'M12 20V5M6 11l6-6 6 6',
+  search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',
+  ruler: 'M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4',
+  list: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
+  target: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

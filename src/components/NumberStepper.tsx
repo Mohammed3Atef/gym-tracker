@@ -38,7 +38,7 @@ export function NumberStepper({
       <button
         type="button"
         onClick={() => bump(-step)}
-        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-slate-200 transition-transform active:scale-90 active:bg-slate-600"
+        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line bg-surface-raised text-white transition-transform active:scale-90 active:bg-white/10"
         aria-label="decrease"
       >
         <Icon name="minus" size={18} />
@@ -55,7 +55,7 @@ export function NumberStepper({
             const v = e.target.value;
             onChange(v === '' ? null : Number(v));
           }}
-          className="h-11 w-full rounded-xl bg-surface px-1 text-center text-base font-semibold text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand"
+          className="h-11 w-full rounded-[10px] border border-line bg-surface-raised px-1 text-center font-mono text-base font-medium text-white placeholder:text-earth-subtle focus:border-brand/60 focus:outline-none"
           step={step}
         />
         {suffix && value != null && (
@@ -67,7 +67,7 @@ export function NumberStepper({
       <button
         type="button"
         onClick={() => bump(step)}
-        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-slate-200 transition-transform active:scale-90 active:bg-slate-600"
+        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-[10px] border border-line bg-surface-raised text-white transition-transform active:scale-90 active:bg-white/10"
         aria-label="increase"
       >
         <Icon name="plus" size={18} />

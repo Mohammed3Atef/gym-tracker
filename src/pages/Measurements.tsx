@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { MeasurementKey } from '@/types';
 import { useMeasurements } from '@/stores/measurementStore';
 import { useDay } from '@/stores/dayStore';
 import { Icon } from '@/components/Icon';
+import { TopBar } from '@/components/TopBar';
 import { shortDate } from '@/lib/utils';
 
 // Full-body measurement list (cm).
@@ -74,9 +76,11 @@ export function Measurements() {
   const a = forDate(dateA);
   const b = forDate(dateB);
 
+  const navigate = useNavigate();
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">{t('measure.title')}</h1>
+    <div className="anim-rise space-y-4">
+      <TopBar title={t('measure.title')} eyebrow={t('gt.body')} onBack={() => navigate('/progress')} />
 
       {/* Entry form for the selected day */}
       <div className="card">

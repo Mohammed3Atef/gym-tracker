@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { ActivityLevel, Goal, Locale, ReminderKind } from '@/types';
@@ -18,6 +18,9 @@ import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { shortDate } from '@/lib/utils';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
+import { TopBar } from '@/components/TopBar';
+import { StatTile } from '@/components/StatTile';
+import { logVolume, prByExercise } from '@/lib/calc';
 
 const GOALS: Goal[] = ['muscle_gain', 'fat_loss', 'recomp', 'maintenance', 'strength'];
 const ACTIVITY: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
@@ -63,8 +66,26 @@ export function Settings() {
   }, []);
 
   const selectedDay = useDay((s) => s.selected);
+  const logs = useWorkout((s) => s.logs);
+  const plan = useWorkout((s) => s.plan);
+  const streaks = useHabits((s) => s.streaks);
+  const stats = useMemo(() => {
+    const fin = logs.filter((l) => l.finished);
+    return {
+      workouts: fin.length,
+      volumeT: (fin.reduce((v, l) => v + logVolume(l), 0) / 1000).toFixed(0),
+      prs: prByExercise(logs).size,
+    };
+  }, [logs]);
 
   if (!profile || !settings) return null;
+
+  const initials =
+    profile.name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || 'A';
+  const memberSince = new Date(profile.createdAt).toLocaleDateString(settings.locale === 'ar' ? 'ar-EG' : 'en-US', {
+    month: 'short',
+    year: 'numeric',
+  });
 
   const enableNotifications = async () => {
     const granted = await requestPermission();
@@ -140,8 +161,51 @@ export function Settings() {
   };
 
   return (
-    <div className="space-y-4 pb-4">
-      <h1 className="text-2xl font-bold">{t('settings.title')}</h1>
+    <div className="anim-rise space-y-4 pb-4">
+      <TopBar title={t('gt.profile')} eyebrow={t('gt.athlete')} right={<SyncStatusBadge />} />
+
+      {/* Profile summary card */}
+      <div className="card flex items-center gap-4">
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand font-serif text-2xl italic text-white">
+          {initials}
+        </span>
+        <div className="min-w-0">
+          <h2 className="truncate font-display text-lg font-semibold">{profile.name}</h2>
+          <p className="font-mono text-[11.5px] text-earth-muted">{t('gt.memberSince', { date: memberSince, unit: t('common.kg') })}</p>
+        </div>
+      </div>
+
+      {/* Lifetime stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile icon="dumbbell" value={stats.workouts} label={t('gt.totalWorkouts')} />
+        <StatTile icon="flame" value={streaks.workout.current} label={t('gt.dayStreak')} />
+        <StatTile icon="arrowUp" value={stats.volumeT} unit="t" label={t('gt.lifetimeVolume')} />
+        <StatTile icon="trophy" value={stats.prs} label={t('gt.personalRecords')} />
+      </div>
+
+      {/* Training links */}
+      <div className="sec-head"><h2 className="h2">{t('gt.training')}</h2></div>
+      <div className="card divide-y divide-line-soft p-0">
+        <button type="button" onClick={() => navigate('/workout')} className="flex w-full items-center gap-3 px-5 py-4 text-start">
+          <span className="row-av h-9 w-9"><Icon name="list" size={16} /></span>
+          <span className="flex-1 font-display text-[15px] font-medium">{t('gt.routines')}</span>
+          <span className="font-mono text-[12px] text-earth-muted">{plan?.days.length ?? 0}</span>
+          <Icon name="chevron" size={16} className="text-earth-subtle" />
+        </button>
+        <button type="button" onClick={() => navigate('/workout/library')} className="flex w-full items-center gap-3 px-5 py-4 text-start">
+          <span className="row-av h-9 w-9"><Icon name="search" size={16} /></span>
+          <span className="flex-1 font-display text-[15px] font-medium">{t('gt.exerciseLibrary')}</span>
+          <span className="font-mono text-[12px] text-earth-muted">{plan ? Object.keys(plan.exercises).length : 0}</span>
+          <Icon name="chevron" size={16} className="text-earth-subtle" />
+        </button>
+        <button type="button" onClick={() => navigate('/progress/measurements')} className="flex w-full items-center gap-3 px-5 py-4 text-start">
+          <span className="row-av h-9 w-9"><Icon name="ruler" size={16} /></span>
+          <span className="flex-1 font-display text-[15px] font-medium">{t('gt.measurements')}</span>
+          <Icon name="chevron" size={16} className="text-earth-subtle" />
+        </button>
+      </div>
+
+      <div className="sec-head"><h2 className="h2">{t('settings.title')}</h2></div>
 
       {/* Profile */}
       <section className="card space-y-3">

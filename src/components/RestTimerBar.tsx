@@ -3,55 +3,52 @@ import { Icon } from './Icon';
 import { formatDuration } from '@/lib/utils';
 
 /**
- * Floating rest-timer controls. Always visible (within the session) without
- * leaving the exercise list: −15s / +15s / pause / skip.
+ * Floating rest-timer card (MyRocky style): timer icon + REST label + big
+ * countdown on the left, −15 / +15 / Skip on the right, copper progress bar below.
  */
 export function RestTimerBar() {
   const { running, paused, remainingSec, totalSec, adjust, pause, resume, skip } = useTimer();
   if (!running && !paused) return null;
 
   const pct = totalSec > 0 ? remainingSec / totalSec : 0;
-
-  const pill = 'flex h-9 items-center justify-center rounded-full bg-surface-raised px-3 text-xs font-semibold text-slate-200 transition-transform active:scale-90';
+  const btn =
+    'flex h-9 items-center justify-center rounded-full border border-line bg-surface-card px-3 font-mono text-xs uppercase tracking-[0.04em] text-earth transition-transform active:scale-90';
 
   return (
-    <div className="flex items-center gap-1.5 rounded-full bg-brand/15 px-2 py-1.5 ring-1 ring-brand/40">
-      <button type="button" onClick={skip} className="icon-btn h-9 w-9" aria-label="skip rest">
-        <Icon name="close" size={16} />
-      </button>
-      <button
-        type="button"
-        onClick={() => (paused ? resume() : pause())}
-        className="icon-btn h-9 w-9"
-        aria-label={paused ? 'resume' : 'pause'}
-      >
-        <Icon name={paused ? 'play' : 'pause'} size={16} />
-      </button>
-      <button type="button" onClick={() => adjust(-15)} className={pill}>
-        −15
-      </button>
-      <button type="button" onClick={() => adjust(15)} className={pill}>
-        +15
-      </button>
-      <span className="min-w-[3.5ch] text-center font-mono text-lg font-bold tabular-nums text-brand-light">
-        {formatDuration(remainingSec)}
-      </span>
-      <div className="relative h-8 w-8 shrink-0">
-        <svg viewBox="0 0 36 36" className="-rotate-90">
-          <circle cx="18" cy="18" r="15" fill="none" stroke="#334155" strokeWidth="4" />
-          <circle
-            className="ring-track"
-            cx="18"
-            cy="18"
-            r="15"
-            fill="none"
-            stroke="#22c55e"
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeDasharray={2 * Math.PI * 15}
-            strokeDashoffset={2 * Math.PI * 15 * (1 - pct)}
-          />
-        </svg>
+    <div className="w-full max-w-md rounded-[18px] border border-line bg-surface-raised p-4 shadow-deep">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => (paused ? resume() : pause())}
+          className="flex items-center gap-2.5 text-start"
+          aria-label={paused ? 'resume' : 'pause'}
+        >
+          <span className="text-brand">
+            <Icon name="timer" size={20} />
+          </span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-earth-muted">Rest</span>
+          <span className="font-mono text-2xl font-medium tabular-nums text-white">
+            {formatDuration(remainingSec)}
+          </span>
+        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => adjust(-15)} className={btn}>
+            −15
+          </button>
+          <button type="button" onClick={() => adjust(15)} className={btn}>
+            +15
+          </button>
+          <button
+            type="button"
+            onClick={skip}
+            className="flex h-9 items-center justify-center rounded-full border border-brand/40 px-3 font-mono text-xs uppercase tracking-[0.04em] text-brand transition-transform active:scale-90"
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+      <div className="prog mt-3">
+        <span style={{ width: `${pct * 100}%` }} />
       </div>
     </div>
   );
