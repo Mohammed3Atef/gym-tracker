@@ -21,6 +21,7 @@ export const SEED_SETTINGS: AppSettings = {
   locale: 'en',
   theme: 'dark',
   restDefaultSec: 90,
+  weeklyWorkoutGoal: 5,
   keepAwakeDuringWorkout: true,
   vibrationEnabled: true,
   notificationsEnabled: false,

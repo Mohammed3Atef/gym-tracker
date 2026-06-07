@@ -368,6 +368,8 @@ export interface AppSettings {
   locale: Locale;
   theme: Theme;
   restDefaultSec: number;
+  /** Target number of workouts per week (shown on the Home weekly-goal ring). */
+  weeklyWorkoutGoal: number;
   keepAwakeDuringWorkout: boolean;
   vibrationEnabled: boolean;
   notificationsEnabled: boolean;

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { VideoAsset } from '@/types';
 import { useWorkout } from '@/stores/workoutStore';
 import { useSettings } from '@/stores/settingsStore';
+import { useDay } from '@/stores/dayStore';
 import { useTimer } from '@/stores/timerStore';
 import { useVideos } from '@/stores/videoStore';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -25,12 +26,17 @@ export function WorkoutSession() {
 
   const plan = useWorkout((s) => s.plan);
   const active = useWorkout((s) => s.active);
+  const logs = useWorkout((s) => s.logs);
+  const setDay = useDay((s) => s.setDay);
   const updateSet = useWorkout((s) => s.updateSet);
   const toggleSetDone = useWorkout((s) => s.toggleSetDone);
   const addSet = useWorkout((s) => s.addSet);
   const removeSet = useWorkout((s) => s.removeSet);
   const addExercise = useWorkout((s) => s.addExercise);
   const removeExercise = useWorkout((s) => s.removeExercise);
+  const undoRemoveExercise = useWorkout((s) => s.undoRemoveExercise);
+  const restoreDayExercises = useWorkout((s) => s.restoreDayExercises);
+  const lastRemoved = useWorkout((s) => s.lastRemoved);
   const beginTimer = useWorkout((s) => s.beginTimer);
   const discardDraft = useWorkout((s) => s.discardDraft);
   const discardActive = useWorkout((s) => s.discardActive);
@@ -45,6 +51,7 @@ export function WorkoutSession() {
   const [videoAsset, setVideoAsset] = useState<VideoAsset | null>(null);
   const [videoTitle, setVideoTitle] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [durationMin, setDurationMin] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [summary, setSummary] = useState<null | {
@@ -78,19 +85,37 @@ export function WorkoutSession() {
       .filter((ex) => !q || ex.name.toLowerCase().includes(q) || ex.targetMuscle.toLowerCase().includes(q));
   }, [plan, active, search]);
 
-  if (!plan || !active) {
+  // After a refresh the in-memory session is gone. A *started* workout is
+  // persisted, so recover the most recent unfinished one by focusing its day
+  // (the day-change effect re-points `active` at it). Unstarted drafts aren't
+  // saved by design — nothing to restore, so we fall back to the routines list.
+  const unfinished = useMemo(
+    () => (active ? null : logs.find((l) => l.startedAt && !l.finished) ?? null),
+    [active, logs],
+  );
+  useEffect(() => {
+    if (unfinished) setDay(unfinished.date);
+  }, [unfinished, setDay]);
+
+  if (!plan || (!active && !unfinished)) {
     return (
       <div className="space-y-4 pt-16 text-center">
-        <p className="text-earth-muted">{t('progress.noData')}</p>
+        <p className="text-earth-muted">{t('workout.noActiveSession')}</p>
         <button type="button" onClick={() => navigate('/workout')} className="btn-primary mx-auto">
           {t('nav.workout')}
         </button>
       </div>
     );
   }
+  // Resuming a persisted session: the effect above is re-pointing `active`.
+  if (!active) return null;
 
   const day = plan.days.find((d) => d.id === active.dayId);
   const recording = !!active.startedAt || active.finished;
+  // Plan exercises that aren't currently in the session (e.g. removed by mistake).
+  const missingFromPlan = day
+    ? day.exerciseIds.filter((id) => !active.exercises.some((e) => e.exerciseId === id)).length
+    : 0;
 
   const minimize = () => {
     discardDraft(); // no-op if already started/saved
@@ -113,13 +138,18 @@ export function WorkoutSession() {
   };
 
   const doSave = async () => {
-    await finishSession();
-    setSummary({
-      durationSec: active.startedAt ? Math.round((Date.now() - active.startedAt) / 1000) : active.durationSec,
-      volume: logVolume(active),
-      sets: logSetCount(active),
-      exercises: logExerciseCount(active),
-    });
+    const mins = Number(durationMin);
+    const override = Number.isFinite(mins) && mins > 0 ? mins * 60 : undefined;
+    const saved = await finishSession(override);
+    if (saved) {
+      // Use the persisted log so the summary matches what's actually stored.
+      setSummary({
+        durationSec: saved.durationSec,
+        volume: logVolume(saved),
+        sets: logSetCount(saved),
+        exercises: logExerciseCount(saved),
+      });
+    }
     setConfirmOpen(false);
   };
 
@@ -127,6 +157,13 @@ export function WorkoutSession() {
     setConfirmOpen(false);
     await discardActive();
     navigate('/');
+  };
+
+  // Open the finish sheet, prefilling the duration with the tracked time so the
+  // user can adjust it (e.g. if they forgot to hit finish during the session).
+  const openFinish = () => {
+    setDurationMin(String(Math.max(1, Math.round(elapsed / 60))));
+    setConfirmOpen(true);
   };
 
   // --- Finish summary (full-screen) ---
@@ -171,7 +208,7 @@ export function WorkoutSession() {
         {recording ? (
           <button
             type="button"
-            onClick={() => setConfirmOpen(true)}
+            onClick={openFinish}
             className="flex h-[42px] items-center rounded-full bg-brand px-5 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-white transition-transform active:scale-95"
           >
             {t('common.finish')}
@@ -200,6 +237,23 @@ export function WorkoutSession() {
 
       {/* Exercise blocks */}
       <div className="flex-1 space-y-3 px-5 pb-44">
+        {/* Undo banner — appears right after an exercise is removed */}
+        {lastRemoved && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised px-4 py-3">
+            <span className="min-w-0 truncate font-mono text-[12px] text-earth-muted">
+              {t('gt.exerciseRemoved')}
+              {plan.exercises[lastRemoved.log.exerciseId] ? ` · ${plan.exercises[lastRemoved.log.exerciseId].name}` : ''}
+            </span>
+            <button
+              type="button"
+              onClick={undoRemoveExercise}
+              className="flex shrink-0 items-center gap-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-brand"
+            >
+              <Icon name="rotate" size={14} /> {t('gt.undo')}
+            </button>
+          </div>
+        )}
+
         {active.exercises.map((log) => {
           const ex = plan.exercises[log.exerciseId];
           if (!ex) return null;
@@ -222,6 +276,13 @@ export function WorkoutSession() {
         <button type="button" onClick={() => setPickerOpen(true)} className="btn-ghost w-full">
           <Icon name="plus" size={15} /> {t('gt.addExercise')}
         </button>
+
+        {/* Recover exercises removed from the day's plan, in their original order */}
+        {missingFromPlan > 0 && (
+          <button type="button" onClick={restoreDayExercises} className="btn-ghost w-full">
+            <Icon name="rotate" size={15} /> {t('gt.restorePlanExercises')} ({missingFromPlan})
+          </button>
+        )}
       </div>
 
       {/* Floating rest timer */}
@@ -233,9 +294,18 @@ export function WorkoutSession() {
 
       {/* Finish confirm */}
       <Sheet open={confirmOpen} onClose={() => setConfirmOpen(false)} title={t('gt.finishWorkoutQ')}>
-        <p className="mb-5 font-mono text-[13px] text-earth-muted">
-          {t('gt.setsCount', { done: doneSets, total: totalSets })} · {(runningVolume / 1000).toFixed(1)}t · {formatDuration(elapsed)}
+        <p className="mb-4 font-mono text-[13px] text-earth-muted">
+          {t('gt.setsCount', { done: doneSets, total: totalSets })} · {(runningVolume / 1000).toFixed(1)}t
         </p>
+        <label className="label" htmlFor="finish-duration">{t('gt.durationMin')}</label>
+        <input
+          id="finish-duration"
+          inputMode="numeric"
+          value={durationMin}
+          onChange={(e) => setDurationMin(e.target.value.replace(/[^\d]/g, ''))}
+          onFocus={(e) => e.currentTarget.select()}
+          className="input mb-5"
+        />
         <div className="space-y-2.5">
           <button type="button" onClick={() => void doSave()} className="btn-primary w-full">
             {t('gt.saveWorkout')}

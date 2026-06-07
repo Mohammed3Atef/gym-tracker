@@ -9,7 +9,7 @@ import type {
   Streaks,
   WorkoutLog,
 } from '@/types';
-import { addDays, diffDays } from '@/lib/utils';
+import { diffDays } from '@/lib/utils';
 
 /**
  * Pure functions that derive the daily checklist and streaks from the raw logs.
@@ -104,31 +104,45 @@ export function extractManual(stored: DailyChecklist | null): Record<string, boo
 const EMPTY: StreakValue = { current: 0, longest: 0, lastDate: null };
 
 /**
- * Computes a streak from the set of "qualifying" day keys (days where the habit
- * was met). `current` counts back from today (or yesterday) consecutively.
+ * Rest-day tolerance for the workout streak: a run survives gaps of up to this
+ * many days, so it only resets after 3 consecutive days with no workout.
  */
-function streakFromDays(qualifying: Set<string>, todayKey: string): StreakValue {
+const WORKOUT_MAX_GAP_DAYS = 3;
+
+/**
+ * Computes a streak from the set of "qualifying" day keys (days where the habit
+ * was met). Counts qualifying days in a run, tolerating gaps up to `maxGap` days
+ * between them — so rest days don't break a workout streak. The current run is
+ * "alive" as long as the most recent qualifying day is within `maxGap` of today;
+ * once that many days pass with nothing logged, it resets to 0.
+ *
+ * `maxGap = 1` means strictly consecutive days (the default for daily habits).
+ */
+function streakFromDays(qualifying: Set<string>, todayKey: string, maxGap = 1): StreakValue {
   if (qualifying.size === 0) return EMPTY;
   const sorted = [...qualifying].sort();
   const lastDate = sorted[sorted.length - 1];
 
-  // longest run of consecutive days
+  // longest run, allowing gaps up to maxGap days between qualifying days
   let longest = 0;
   let run = 0;
   let prev: string | null = null;
   for (const d of sorted) {
-    if (prev && diffDays(d, prev) === 1) run += 1;
+    if (prev && diffDays(d, prev) <= maxGap) run += 1;
     else run = 1;
     longest = Math.max(longest, run);
     prev = d;
   }
 
-  // current run: walk back from today; allow today not-yet-done (start yesterday)
+  // current run: alive only if the latest qualifying day is within maxGap of
+  // today, then count qualifying days back while each gap stays within maxGap.
   let current = 0;
-  let cursor = qualifying.has(todayKey) ? todayKey : addDays(todayKey, -1);
-  while (qualifying.has(cursor)) {
-    current += 1;
-    cursor = addDays(cursor, -1);
+  if (diffDays(todayKey, lastDate) <= maxGap) {
+    current = 1;
+    for (let i = sorted.length - 1; i > 0; i -= 1) {
+      if (diffDays(sorted[i], sorted[i - 1]) <= maxGap) current += 1;
+      else break;
+    }
   }
 
   return { current, longest, lastDate };
@@ -178,7 +192,7 @@ export function computeStreaks(input: StreakInputs): Streaks {
   );
 
   return {
-    workout: streakFromDays(workoutDays, todayKey),
+    workout: streakFromDays(workoutDays, todayKey, WORKOUT_MAX_GAP_DAYS),
     nutrition: streakFromDays(nutritionDays, todayKey),
     water: streakFromDays(waterDays, todayKey),
     steps: streakFromDays(stepsDays, todayKey),

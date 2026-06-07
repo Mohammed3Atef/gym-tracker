@@ -6,9 +6,10 @@ import { useDay } from '@/stores/dayStore';
 import { Icon } from '@/components/Icon';
 import { TopBar } from '@/components/TopBar';
 import { logVolume, logSetCount, logExerciseCount } from '@/lib/calc';
-import { formatDuration } from '@/lib/utils';
+import { formatDuration, weekdayOffset } from '@/lib/utils';
 
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+// Week starts on Saturday: Sat, Sun, Mon, Tue, Wed, Thu, Fri.
+const WEEKDAYS = ['S', 'S', 'M', 'T', 'W', 'T', 'F'];
 
 export function History() {
   const { t, i18n } = useTranslation();
@@ -40,7 +41,7 @@ export function History() {
   const monthVolume = monthSessions.reduce((v, l) => v + logVolume(l), 0);
 
   const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
-  const leadingBlanks = new Date(cursor.y, cursor.m, 1).getDay();
+  const leadingBlanks = weekdayOffset(new Date(cursor.y, cursor.m, 1).getDay());
   const cells: (number | null)[] = [...Array(leadingBlanks).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
   const monthLabel = new Date(cursor.y, cursor.m, 1).toLocaleDateString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', {

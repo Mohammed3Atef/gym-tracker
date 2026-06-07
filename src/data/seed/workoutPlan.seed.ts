@@ -154,20 +154,19 @@ export const SEED_WORKOUT_PLAN: WorkoutPlan = {
     abs: '6 sets',
   },
   exercises,
-  // 5-day split from the sheet: Push / Pull / Legs / Push / Pull
-  // (days 4 & 5 repeat the Push and Pull sessions).
+  // 3-day Push / Pull / Legs split; the user repeats the cycle each week.
   days: [
     {
       id: 'day_push_1',
       dayIndex: 0,
-      title: 'Push A',
+      title: 'Push',
       focus: 'Chest · Shoulders · Triceps',
       exerciseIds: push.map((e) => e.id),
     },
     {
       id: 'day_pull_1',
       dayIndex: 1,
-      title: 'Pull A',
+      title: 'Pull',
       focus: 'Back · Biceps',
       exerciseIds: pull.map((e) => e.id),
     },
@@ -177,20 +176,6 @@ export const SEED_WORKOUT_PLAN: WorkoutPlan = {
       title: 'Legs',
       focus: 'Quads · Hamstrings · Calves',
       exerciseIds: legs.map((e) => e.id),
-    },
-    {
-      id: 'day_push_2',
-      dayIndex: 3,
-      title: 'Push B',
-      focus: 'Chest · Shoulders · Triceps',
-      exerciseIds: push.map((e) => e.id),
-    },
-    {
-      id: 'day_pull_2',
-      dayIndex: 4,
-      title: 'Pull B',
-      focus: 'Back · Biceps',
-      exerciseIds: pull.map((e) => e.id),
     },
   ],
 };

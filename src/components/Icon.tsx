@@ -37,7 +37,8 @@ type IconName =
   | 'search'
   | 'ruler'
   | 'list'
-  | 'target';
+  | 'target'
+  | 'rotate';
 
 const PATHS: Record<IconName, string> = {
   home: 'M3 11.5 12 4l9 7.5M5 10v10h14V10',
@@ -77,6 +78,8 @@ const PATHS: Record<IconName, string> = {
   ruler: 'M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4',
   list: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
   target: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  // Counter-clockwise "undo / restore" arrow.
+  rotate: 'M3 4v6h6M3.5 10a9 9 0 1 1-1 5',
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

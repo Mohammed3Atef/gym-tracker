@@ -111,7 +111,7 @@ export function Settings() {
     useWorkout.getState().loadDay(selectedDay);
     await useHabits.getState().refresh(selectedDay);
     // Push the deletion to the cloud now (if signed in & online) so it sticks.
-    if (cloud.user) void cloud.syncNow();
+    if (cloud.user) void cloud.syncNow(true);
   };
 
   // Pull the latest build: unregister the service worker + clear the app/cache
@@ -260,6 +260,15 @@ export function Settings() {
           <input className="input h-10 w-24 text-center" inputMode="numeric" value={settings.restDefaultSec} onChange={(e) => void updateSettings({ restDefaultSec: Number(e.target.value) || 0 })} />
         </div>
         <div className="flex items-center justify-between">
+          <span>{t('settings.weeklyGoal')}</span>
+          <input
+            className="input h-10 w-24 text-center"
+            inputMode="numeric"
+            value={settings.weeklyWorkoutGoal ?? 5}
+            onChange={(e) => void updateSettings({ weeklyWorkoutGoal: Math.min(14, Math.max(1, Number(e.target.value.replace(/[^\d]/g, '')) || 1)) })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
           <span>{t('settings.keepAwake')}</span>
           <Toggle on={settings.keepAwakeDuringWorkout} onClick={() => void updateSettings({ keepAwakeDuringWorkout: !settings.keepAwakeDuringWorkout })} />
         </div>
@@ -379,7 +388,7 @@ export function Settings() {
             <p className="text-sm text-slate-300">{cloud.user.email}</p>
             {cloud.lastSync && <p className="text-xs text-slate-500">{t('settings.lastSync')}: {new Date(cloud.lastSync).toLocaleTimeString()}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => void cloud.syncNow()} disabled={cloud.syncing} className="btn-primary flex-1">
+              <button type="button" onClick={() => void cloud.syncNow(true)} disabled={cloud.syncing} className="btn-primary flex-1">
                 {cloud.syncing ? '…' : t('settings.syncNow')}
               </button>
               <button type="button" onClick={() => void cloud.signOut()} className="btn-ghost flex-1">{t('settings.signOut')}</button>

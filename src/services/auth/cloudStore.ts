@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { cloudAvailable } from '@/data/dataSource';
 
+/** Opportunistic syncs (tab refocus, reconnect) within this window are skipped. */
+const MIN_SYNC_INTERVAL_MS = 60_000;
+
 interface CloudUser {
   uid: string;
   email: string | null;
@@ -17,7 +20,7 @@ interface CloudState {
   init: () => void;
   signIn: (email: string, password: string, create?: boolean) => Promise<void>;
   signOut: () => Promise<void>;
-  syncNow: () => Promise<void>;
+  syncNow: (force?: boolean) => Promise<void>;
   wipeCloud: () => Promise<void>;
 }
 
@@ -48,10 +51,12 @@ export const useCloud = create<CloudState>((set, get) => ({
       firebaseAuth.onChange((u) => {
         console.info('[firebase] auth state:', u ? `signed in (${u.uid})` : 'signed out');
         set({ user: u ? { uid: u.uid, email: u.email } : null });
-        if (u) void get().syncNow();
+        if (u) void get().syncNow(true); // first sign-in sync always runs
       });
     });
-    // Auto-sync: on reconnect, on app foreground, and periodically.
+    // Auto-sync: on reconnect, on app foreground, and periodically. These are
+    // opportunistic and throttled (see syncNow) so a flurry of tab-refocus /
+    // reconnect events doesn't re-pull everything each time.
     window.addEventListener('online', () => void get().syncNow());
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void get().syncNow();
@@ -69,7 +74,7 @@ export const useCloud = create<CloudState>((set, get) => ({
         : await firebaseAuth.signIn(email, password);
       console.info('[firebase] signed in as', user.uid);
       set({ user: { uid: user.uid, email: user.email } });
-      await get().syncNow();
+      await get().syncNow(true);
     } catch (e) {
       console.error('[firebase] sign-in failed:', e);
       set({ error: e instanceof Error ? e.message : 'Sign-in failed' });
@@ -83,9 +88,11 @@ export const useCloud = create<CloudState>((set, get) => ({
     set({ user: null, lastSync: null });
   },
 
-  async syncNow() {
-    const { user } = get();
-    if (!user || get().syncing) return;
+  async syncNow(force = false) {
+    const { user, syncing, lastSync } = get();
+    if (!user || syncing) return;
+    // Skip redundant opportunistic syncs; explicit/sign-in syncs pass force.
+    if (!force && lastSync && Date.now() - lastSync < MIN_SYNC_INTERVAL_MS) return;
     set({ syncing: true, error: null });
     try {
       const { SyncEngine } = await import('@/data/sync/SyncEngine');

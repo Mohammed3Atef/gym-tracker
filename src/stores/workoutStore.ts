@@ -23,6 +23,8 @@ interface WorkoutState {
   logs: WorkoutLog[];
   active: WorkoutLog | null;
   loaded: boolean;
+  /** Last exercise removed from the active session, for one-tap undo. */
+  lastRemoved: { log: ExerciseLog; index: number } | null;
 
   load: () => Promise<void>;
   loadDay: (date: string) => void;
@@ -37,7 +39,9 @@ interface WorkoutState {
   removeSet: (exerciseId: string, setIndex: number) => void;
   addExercise: (exerciseId: string) => void;
   removeExercise: (exerciseId: string) => void;
-  finishSession: () => Promise<void>;
+  undoRemoveExercise: () => void;
+  restoreDayExercises: () => void;
+  finishSession: (durationOverrideSec?: number) => Promise<WorkoutLog | null>;
   previousFor: (exerciseId: string) => PrevPerf | null;
 }
 
@@ -91,6 +95,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
   logs: [],
   active: null,
   loaded: false,
+  lastRemoved: null,
 
   async load() {
     const ds = getDataSource();
@@ -99,7 +104,18 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       ds.workoutLogs.getAll(),
     ]);
     const plan = plans[0] ?? null;
-    const sorted = logs.sort((a, b) => b.date.localeCompare(a.date));
+    // Sweep up abandoned drafts from previous days (created but never started or
+    // finished) so persisted drafts don't accumulate. Today's draft is kept so a
+    // refresh can resume it.
+    const td = today();
+    const stale = logs.filter((l) => !l.startedAt && !l.finished && l.id !== td);
+    if (stale.length) {
+      await Promise.all(
+        stale.flatMap((l) => [ds.workoutLogs.remove(l.id), recordDeletion('workoutLogs', l.id)]),
+      );
+    }
+    const live = logs.filter((l) => l.startedAt || l.finished || l.id === td);
+    const sorted = live.sort((a, b) => b.date.localeCompare(a.date));
     set({ plan, logs: sorted, loaded: true });
     // Focus today's log by default (in-progress → resume, finished → editable).
     get().loadDay(today());
@@ -122,11 +138,18 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     if (!day) return;
     const date = useDay.getState().selected;
     const existing = logs.find((l) => l.id === date);
-    // Existing same-day workout → open it (resume/edit). Otherwise open a DRAFT
-    // that is NOT saved yet — nothing is recorded until the user starts (presses
-    // Start or checks off a set), so they can browse and back out freely.
-    const session = existing && existing.dayId === dayId ? existing : buildSession(plan, day, date);
-    set({ active: session });
+    // Existing same-day workout → just open it (resume/edit).
+    if (existing && existing.dayId === dayId) {
+      set({ active: existing });
+      return;
+    }
+    // Fresh session → persist it right away as a draft so a page refresh can
+    // restore it. Drafts are excluded from every `finished` stat; backing out
+    // (discardDraft) or the daily load-sweep cleans them up.
+    const session = buildSession(plan, day, date);
+    const others = logs.filter((l) => l.id !== session.id);
+    set({ active: session, logs: [session, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
+    void getDataSource().workoutLogs.put(session);
   },
 
   /** Persist the draft + start the timer (first real "record" action). */
@@ -143,10 +166,14 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     return get().active;
   },
 
-  /** Drop an unstarted, unsaved draft (e.g. user backs out without starting). */
+  /** Drop an unstarted draft (e.g. user backs out without starting). */
   discardDraft() {
-    const { active } = get();
-    if (active && !active.startedAt && !active.finished) set({ active: null });
+    const { active, logs } = get();
+    if (active && !active.startedAt && !active.finished) {
+      void getDataSource().workoutLogs.remove(active.id);
+      void recordDeletion('workoutLogs', active.id);
+      set({ active: null, logs: logs.filter((l) => l.id !== active.id) });
+    }
   },
 
   async discardActive() {
@@ -173,7 +200,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
     // Keep the logs array in sync so loadDay/previousFor never read stale data.
     set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
-    if (next.startedAt) persist(next); // edits before "Start" stay in memory
+    persist(next); // persisted even before "Start" so a refresh keeps the entry
   },
 
   toggleSetDone(exerciseId, setIndex) {
@@ -217,7 +244,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
     set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
-    if (next.startedAt) persist(next);
+    persist(next);
   },
 
   removeSet(exerciseId, setIndex) {
@@ -233,7 +260,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     });
     const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
     set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
-    if (next.startedAt) persist(next);
+    persist(next);
   },
 
   /** Append an exercise (from the plan catalog) to the active session. */
@@ -252,33 +279,81 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     };
     const next = { ...active, exercises: [...active.exercises, newLog], updatedAt: Date.now(), dirty: true };
     set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
-    if (next.startedAt) persist(next);
+    persist(next);
   },
 
-  /** Remove an exercise from the active session. */
+  /** Remove an exercise from the active session (stashed so it can be undone). */
   removeExercise(exerciseId) {
     const { active } = get();
     if (!active) return;
+    const index = active.exercises.findIndex((e) => e.exerciseId === exerciseId);
+    if (index < 0) return;
+    const removed = active.exercises[index];
     const next = {
       ...active,
       exercises: active.exercises.filter((e) => e.exerciseId !== exerciseId),
       updatedAt: Date.now(),
       dirty: true,
     };
-    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)) });
-    if (next.startedAt) persist(next);
+    set({
+      active: next,
+      logs: get().logs.map((l) => (l.id === next.id ? next : l)),
+      lastRemoved: { log: removed, index },
+    });
+    persist(next);
   },
 
-  async finishSession() {
+  /** Re-insert the most recently removed exercise at its original position. */
+  undoRemoveExercise() {
+    const { active, lastRemoved } = get();
+    if (!active || !lastRemoved) return;
+    const exercises = [...active.exercises];
+    exercises.splice(Math.min(lastRemoved.index, exercises.length), 0, lastRemoved.log);
+    const next = { ...active, exercises, updatedAt: Date.now(), dirty: true };
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)), lastRemoved: null });
+    persist(next);
+  },
+
+  /**
+   * Re-add every exercise from the day's plan that's missing from the session,
+   * restoring the plan's original order. Already-present exercises keep their
+   * logged sets; any extra (user-added) exercises are kept at the end.
+   */
+  restoreDayExercises() {
+    const { active, plan } = get();
+    if (!active || !plan) return;
+    const day = plan.days.find((d) => d.id === active.dayId);
+    if (!day) return;
+    const present = new Map(active.exercises.map((e) => [e.exerciseId, e]));
+    const ordered: ExerciseLog[] = day.exerciseIds.map((id) => {
+      const cur = present.get(id);
+      if (cur) {
+        present.delete(id);
+        return cur;
+      }
+      const ex = plan.exercises[id];
+      return { exerciseId: id, sets: buildSets(ex.workingSets, ex.repRange), done: false };
+    });
+    const extras = active.exercises.filter((e) => present.has(e.exerciseId));
+    const next = { ...active, exercises: [...ordered, ...extras], updatedAt: Date.now(), dirty: true };
+    set({ active: next, logs: get().logs.map((l) => (l.id === next.id ? next : l)), lastRemoved: null });
+    persist(next);
+  },
+
+  async finishSession(durationOverrideSec) {
     const { active, logs } = get();
-    if (!active) return;
+    if (!active) return null;
     const endedAt = Date.now();
-    // Compute duration only for a live, freshly-run session. Editing an already
-    // finished workout (or one that was never timed) keeps its existing value.
-    const durationSec =
+    // Prefer an explicit duration (user edited it — e.g. forgot to hit finish).
+    // Otherwise time a live session; an already-finished one keeps its value.
+    const computed =
       active.startedAt && !active.finished
         ? Math.round((endedAt - active.startedAt) / 1000)
         : active.durationSec;
+    const durationSec =
+      durationOverrideSec != null && durationOverrideSec > 0
+        ? Math.round(durationOverrideSec)
+        : computed;
     const finished: WorkoutLog = {
       ...active,
       endedAt: active.endedAt ?? endedAt,
@@ -294,6 +369,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       logs: [finished, ...others].sort((a, b) => b.date.localeCompare(a.date)),
     });
     notifyHabitChange();
+    return finished;
   },
 
   previousFor(exerciseId) {

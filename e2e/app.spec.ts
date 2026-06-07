@@ -63,35 +63,37 @@ test.describe('Workout session (gym flow)', () => {
   test('open → start → log set → rest → finish', async ({ page }) => {
     await boot(page);
     await page.getByRole('link', { name: 'Workout' }).click();
-    // Click the Start button inside the "Push A" day card.
-    await page.locator('li.card', { hasText: 'Push A' }).getByRole('button', { name: 'Start' }).click();
+    // Open the "Push" routine, then start the workout.
+    await page.getByRole('button', { name: /Push/ }).first().click();
+    await page.getByRole('button', { name: 'Start this workout' }).click();
 
     // Draft: not recording yet.
     await expect(page.getByText('Not started')).toBeVisible();
 
     // Start the session timer (header button).
-    await page.getByRole('button', { name: 'Start' }).first().click();
+    await page.getByRole('button', { name: 'Start', exact: true }).first().click();
     await expect(page.locator('header .font-mono').first()).toBeVisible();
 
-    // Enter weight via the stepper + complete a set (rest auto-starts).
-    const inc = page.getByLabel('increase');
-    await inc.first().click();
-    await inc.first().click();
+    // Log a set: enter weight + reps, then mark it done (rest auto-starts).
+    await page.getByLabel('Weight').first().fill('20');
+    await page.getByLabel('reps').first().fill('10');
     await page.getByLabel('Done').first().click();
     await expect(page.getByRole('button', { name: '+15' })).toBeVisible();
 
-    // Finish → popup confirm.
-    await page.getByRole('button', { name: 'Finish workout' }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Finish' }).click();
-    await expect(page).toHaveURL(/\/progress/);
+    // Finish → confirm sheet → save → completion summary.
+    await page.getByRole('button', { name: 'Finish' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Save workout' }).click();
+    await expect(page.getByText('Workout complete')).toBeVisible();
   });
 
   test('draft is discarded when backing out without starting', async ({ page }) => {
     await boot(page);
     await page.getByRole('link', { name: 'Workout' }).click();
-    await page.locator('li.card', { hasText: 'Pull A' }).getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: /Pull/ }).first().click();
+    await page.getByRole('button', { name: 'Start this workout' }).click();
     await expect(page.getByText('Not started')).toBeVisible();
-    await page.getByLabel('back').click();
+    // Back out via minimize → the unstarted draft is discarded.
+    await page.getByLabel('minimize').click();
     // Nothing recorded → no Resume/Edit shown.
     await expect(page.getByText('Resume', { exact: false })).toHaveCount(0);
   });

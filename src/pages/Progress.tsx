@@ -11,16 +11,10 @@ import { StatTile } from '@/components/StatTile';
 import { BarChart, LineChart } from '@/components/charts';
 import { logVolume, logSetCount, prByExercise } from '@/lib/calc';
 import { muscleColor, muscleLabel } from '@/lib/muscle';
-import { shortDate } from '@/lib/utils';
+import { shortDate, weekStartOf } from '@/lib/utils';
 
 type Tab = 'overview' | 'records' | 'body';
 
-function mondayOf(d: Date): Date {
-  const diff = (d.getDay() + 6) % 7;
-  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - diff);
-  m.setHours(0, 0, 0, 0);
-  return m;
-}
 function parseDay(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y, m - 1, d);
@@ -42,10 +36,10 @@ export function Progress() {
   const finished = useMemo(() => logs.filter((l) => l.finished), [logs]);
 
   const overview = useMemo(() => {
-    const curMon = mondayOf(new Date()).getTime();
+    const curMon = weekStartOf(new Date()).getTime();
     const buckets = Array.from({ length: 8 }, () => 0);
     finished.forEach((l) => {
-      const wkMon = mondayOf(parseDay(l.date)).getTime();
+      const wkMon = weekStartOf(parseDay(l.date)).getTime();
       const idx = 7 - Math.round((curMon - wkMon) / (7 * 86_400_000));
       if (idx >= 0 && idx < 8) buckets[idx] += logVolume(l);
     });

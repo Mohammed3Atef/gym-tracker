@@ -28,6 +28,20 @@ export function ExerciseDetail() {
   const pr = useMemo(() => (exId ? prByExercise(logs).get(exId) : undefined), [logs, exId]);
   const trend = useMemo(() => (exId ? exerciseTrend(logs, exId) : []), [logs, exId]);
 
+  // Most recent finished session that logged this exercise — shown as a "last
+  // time" reference so the user sees previous weight×reps without opening the
+  // day. (`logs` is pre-sorted newest-first by the store.)
+  const lastPerf = useMemo(() => {
+    if (!exId) return null;
+    for (const log of logs) {
+      if (!log.finished) continue;
+      const e = log.exercises.find((x) => x.exerciseId === exId);
+      const sets = e?.sets.filter((s) => s.weightKg != null || s.actualReps != null);
+      if (sets && sets.length) return { date: log.date, sets };
+    }
+    return null;
+  }, [logs, exId]);
+
   if (!ex || !exId) {
     return <p className="pt-10 text-center text-earth-muted">{t('progress.noData')}</p>;
   }
@@ -72,6 +86,38 @@ export function ExerciseDetail() {
           </span>
         )}
       </div>
+
+      {/* Last time — previous session's weight × reps for this exercise */}
+      {lastPerf && (
+        <div className="card mb-4">
+          <div className="flex items-center justify-between">
+            <span className="ui-label">{t('gt.lastTime')}</span>
+            <span className="font-mono text-[11px] text-earth-subtle">{shortDate(lastPerf.date, i18n.language)}</span>
+          </div>
+          <ul className="mt-3 space-y-1.5">
+            {lastPerf.sets.map((s, i) => {
+              const isWarm = s.type === 'warmup';
+              const label = isWarm
+                ? 'W'
+                : String(lastPerf.sets.slice(0, i + 1).filter((x) => x.type !== 'warmup').length);
+              return (
+                <li key={i} className="flex items-center gap-3">
+                  <span className={`w-6 font-mono text-[12px] font-medium ${isWarm ? 'text-warn' : 'text-earth-muted'}`}>
+                    {label}
+                  </span>
+                  <span className="flex h-10 flex-1 items-center justify-center rounded-[10px] border border-line bg-surface-raised font-mono text-[15px] font-medium text-white">
+                    {s.weightKg ?? '–'} <span className="ml-1 text-[11px] text-earth-subtle">{t('common.kg')}</span>
+                  </span>
+                  <span className="text-earth-subtle">×</span>
+                  <span className="flex h-10 flex-1 items-center justify-center rounded-[10px] border border-line bg-surface-raised font-mono text-[15px] font-medium text-white">
+                    {s.actualReps ?? '–'} <span className="ml-1 text-[11px] text-earth-subtle">{t('gt.repsCol').toLowerCase()}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* PR card */}
       {pr && (

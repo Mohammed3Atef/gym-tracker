@@ -27,6 +27,24 @@ export function dowOf(key: string): number {
   return new Date(y, m - 1, d).getDay();
 }
 
+/**
+ * First day of the week in this app's calendar: 6 = Saturday (JS getDay value).
+ * The training week runs Saturday → Friday (Friday is the rest day).
+ */
+export const WEEK_STARTS_ON = 6;
+
+/** How many slots a given JS weekday sits past the week start (Sat = 0 … Fri = 6). */
+export function weekdayOffset(jsDay: number): number {
+  return (jsDay - WEEK_STARTS_ON + 7) % 7;
+}
+
+/** Midnight of the week-start (Saturday) on or before the given date. */
+export function weekStartOf(d: Date): Date {
+  const s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - weekdayOffset(d.getDay()));
+  s.setHours(0, 0, 0, 0);
+  return s;
+}
+
 /** Inclusive difference in whole days between two day keys (a - b). */
 export function diffDays(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number);

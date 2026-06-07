@@ -11,8 +11,9 @@ import { SEED_PROFILE, SEED_SETTINGS, SEED_REMINDERS } from './seed/defaults';
  *  v2: real 5-day split (Push/Pull/Legs/Push/Pull) + real YouTube video links.
  *  v3: switch videos to local offline files in public/exercise_videos/.
  *  v4: connect every exercise to its local file by name.
+ *  v5: collapse to a 3-day Push/Pull/Legs split (drop duplicate Push B/Pull B).
  */
-const SEED_VERSION = 4;
+const SEED_VERSION = 5;
 
 const meta = localforage.createInstance({ name: 'gym-tracker', storeName: 'meta' });
 

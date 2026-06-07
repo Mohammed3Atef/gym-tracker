@@ -13,16 +13,9 @@ import { StatTile } from '@/components/StatTile';
 import { BarChart } from '@/components/charts';
 import { SyncStatusBadge } from '@/components/SyncStatusBadge';
 import { logVolume, logSetCount } from '@/lib/calc';
-import { formatDuration } from '@/lib/utils';
+import { formatDuration, weekStartOf } from '@/lib/utils';
 import type { WorkoutDay, WorkoutPlan } from '@/types';
 
-function mondayOf(d: Date): Date {
-  const day = d.getDay();
-  const diff = (day + 6) % 7; // Mon=0
-  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - diff);
-  m.setHours(0, 0, 0, 0);
-  return m;
-}
 function parseDay(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y, m - 1, d);
@@ -71,11 +64,11 @@ export function Home() {
 
   // This-week aggregates + 8-week volume trend.
   const { week, trend, goal } = useMemo(() => {
-    const curMon = mondayOf(new Date()).getTime();
-    const inWeek = finished.filter((l) => mondayOf(parseDay(l.date)).getTime() === curMon);
+    const curMon = weekStartOf(new Date()).getTime();
+    const inWeek = finished.filter((l) => weekStartOf(parseDay(l.date)).getTime() === curMon);
     const buckets = Array.from({ length: 8 }, () => 0);
     finished.forEach((l) => {
-      const wkMon = mondayOf(parseDay(l.date)).getTime();
+      const wkMon = weekStartOf(parseDay(l.date)).getTime();
       const diffWeeks = Math.round((curMon - wkMon) / (7 * 86_400_000));
       const idx = 7 - diffWeeks;
       if (idx >= 0 && idx < 8) buckets[idx] += logVolume(l);
@@ -91,9 +84,9 @@ export function Home() {
         label: i === 7 ? t('gt.now') : `-${7 - i}w`,
         value: v,
       })),
-      goal: plan?.days.length ?? 4,
+      goal: settings?.weeklyWorkoutGoal ?? 5,
     };
-  }, [finished, plan, t]);
+  }, [finished, settings?.weeklyWorkoutGoal, t]);
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -154,8 +147,12 @@ export function Home() {
         </div>
       </header>
 
-      {/* Weekly goal */}
-      <div className="card flex items-center gap-4">
+      {/* Weekly goal — tap through to the history/calendar of completed workouts */}
+      <button
+        type="button"
+        onClick={() => navigate('/history')}
+        className="card-tap flex w-full items-center gap-4 text-start"
+      >
         <ProgressRing
           value={goal ? week.workouts / goal : 0}
           size={64}
@@ -168,11 +165,25 @@ export function Home() {
             {remaining > 0 ? t('gt.toGo', { n: remaining }) : t('gt.goalReached')}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Icon name="flame" size={18} className="text-brand" />
-          <span className="font-mono text-lg font-medium">{streaks.overall.current}</span>
-        </div>
-      </div>
+        {(() => {
+          const wk = streaks.workout;
+          const active = wk.current > 0;
+          // Active workout streak → flame + current. Otherwise show the best
+          // streak on record (trophy) so the number still reflects an achievement.
+          return (
+            <div
+              className="flex items-center gap-1.5"
+              title={active ? t('gt.currentStreak') : t('gt.bestStreak')}
+            >
+              <Icon name={active ? 'flame' : 'trophy'} size={18} className={active ? 'text-brand' : 'text-earth-subtle'} />
+              <span className={`font-mono text-lg font-medium ${active ? '' : 'text-earth-muted'}`}>
+                {active ? wk.current : wk.longest}
+              </span>
+            </div>
+          );
+        })()}
+        <Icon name="chevron" size={18} className="text-earth-subtle" />
+      </button>
 
       {/* Up next hero */}
       {suggestedDay && plan && (
