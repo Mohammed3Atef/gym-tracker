@@ -104,17 +104,19 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       ds.workoutLogs.getAll(),
     ]);
     const plan = plans[0] ?? null;
-    // Sweep up abandoned drafts from previous days (created but never started or
-    // finished) so persisted drafts don't accumulate. Today's draft is kept so a
-    // refresh can resume it.
+    // Sweep up abandoned drafts from previous days — but ONLY ones with zero
+    // entered data, and LOCAL-ONLY (no tombstone), so this can never delete a
+    // real or partially-filled workout, here or in the cloud. Today's draft is
+    // always kept so a refresh can resume it.
     const td = today();
-    const stale = logs.filter((l) => !l.startedAt && !l.finished && l.id !== td);
+    const isEmpty = (l: WorkoutLog) =>
+      l.exercises.every((e) => e.sets.every((s) => s.weightKg == null && s.actualReps == null && !s.done));
+    const stale = logs.filter((l) => !l.startedAt && !l.finished && l.id !== td && isEmpty(l));
     if (stale.length) {
-      await Promise.all(
-        stale.flatMap((l) => [ds.workoutLogs.remove(l.id), recordDeletion('workoutLogs', l.id)]),
-      );
+      await Promise.all(stale.map((l) => ds.workoutLogs.remove(l.id)));
     }
-    const live = logs.filter((l) => l.startedAt || l.finished || l.id === td);
+    const staleIds = new Set(stale.map((l) => l.id));
+    const live = logs.filter((l) => !staleIds.has(l.id));
     const sorted = live.sort((a, b) => b.date.localeCompare(a.date));
     set({ plan, logs: sorted, loaded: true });
     // Focus today's log by default (in-progress → resume, finished → editable).
@@ -138,15 +140,17 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     if (!day) return;
     const date = useDay.getState().selected;
     const existing = logs.find((l) => l.id === date);
-    // Existing same-day workout → just open it (resume/edit).
-    if (existing && existing.dayId === dayId) {
+    // NEVER overwrite a real session for this date. If one is already finished or
+    // in progress, open it (resume/edit) — even if it's a different day type — so
+    // a saved workout can't be clobbered by starting another on the same date.
+    if (existing && (existing.finished || existing.startedAt)) {
       set({ active: existing });
       return;
     }
-    // Fresh session → persist it right away as a draft so a page refresh can
-    // restore it. Drafts are excluded from every `finished` stat; backing out
-    // (discardDraft) or the daily load-sweep cleans them up.
-    const session = buildSession(plan, day, date);
+    // Otherwise reuse an existing empty draft of the same day, or build a fresh
+    // one. Persisted right away (local only — drafts never sync) so a page
+    // refresh can restore it; the daily load-sweep clears abandoned empty ones.
+    const session = existing && existing.dayId === dayId ? existing : buildSession(plan, day, date);
     const others = logs.filter((l) => l.id !== session.id);
     set({ active: session, logs: [session, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
     void getDataSource().workoutLogs.put(session);
@@ -170,8 +174,9 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
   discardDraft() {
     const { active, logs } = get();
     if (active && !active.startedAt && !active.finished) {
+      // Local-only removal — a draft never syncs, so no cloud tombstone (which
+      // could otherwise delete real data sharing this date).
       void getDataSource().workoutLogs.remove(active.id);
-      void recordDeletion('workoutLogs', active.id);
       set({ active: null, logs: logs.filter((l) => l.id !== active.id) });
     }
   },

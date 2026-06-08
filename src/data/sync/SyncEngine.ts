@@ -71,7 +71,14 @@ export class SyncEngine {
     const { db } = ensureFirebase();
     const repo = repoFor(name);
     const all = await repo.getAll();
-    const dirty = all.filter((r) => r.dirty);
+    // Unstarted, unfinished workout sessions are local-only scratch — never push
+    // them, so the cloud only ever holds real (started/finished) workouts.
+    const isDraft = (r: Dirty) => {
+      if (name !== 'workoutLogs') return false;
+      const w = r as unknown as { startedAt?: number | null; finished?: boolean };
+      return !w.startedAt && !w.finished;
+    };
+    const dirty = all.filter((r) => r.dirty && !isDraft(r));
     for (const rec of dirty) {
       await setDoc(doc(db, this.path(name), rec.id), stripUndefined(rec) as Record<string, unknown>);
       await repo.put({ ...rec, dirty: false });
