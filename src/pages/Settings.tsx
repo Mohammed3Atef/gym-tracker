@@ -421,8 +421,8 @@ export function Settings() {
           <input className="input" type="password" placeholder={t('settings.password')} value={creds.password} onChange={(e) => setCreds({ ...creds, password: e.target.value })} />
           {cloud.error && <p className="text-sm text-danger">{cloud.error}</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, false).then(() => setAuthOpen(false))} className="btn-primary flex-1">{t('settings.signIn')}</button>
-            <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, true).then(() => setAuthOpen(false))} className="btn-ghost flex-1">{t('settings.signUp')}</button>
+            <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, false).then((ok) => ok && setAuthOpen(false))} className="btn-primary flex-1">{t('settings.signIn')}</button>
+            <button type="button" onClick={() => void cloud.signIn(creds.email, creds.password, true).then((ok) => ok && setAuthOpen(false))} className="btn-ghost flex-1">{t('settings.signUp')}</button>
           </div>
         </div>
       </Sheet>

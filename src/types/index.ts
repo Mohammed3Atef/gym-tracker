@@ -261,6 +261,8 @@ export interface VideoAsset {
   status: VideoStatus;
   localKey?: string;
   sizeBytes?: number;
+  /** Set when the user pasted their own URL — seed upgrades won't replace it. */
+  userEdited?: boolean;
   updatedAt: number;
 }
 

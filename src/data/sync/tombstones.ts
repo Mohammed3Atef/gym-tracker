@@ -9,6 +9,8 @@ import localforage from 'localforage';
 export interface Tombstone {
   collection: string;
   id: string;
+  /** When the local deletion happened (used for delete-vs-edit conflicts). */
+  deletedAt?: number;
 }
 
 const store = localforage.createInstance({ name: 'gym-tracker', storeName: 'deletions' });
@@ -16,7 +18,7 @@ const store = localforage.createInstance({ name: 'gym-tracker', storeName: 'dele
 const key = (collection: string, id: string) => `${collection}/${id}`;
 
 export async function recordDeletion(collection: string, id: string): Promise<void> {
-  await store.setItem(key(collection, id), { collection, id });
+  await store.setItem(key(collection, id), { collection, id, deletedAt: Date.now() });
 }
 
 export async function recordDeletions(collection: string, ids: string[]): Promise<void> {

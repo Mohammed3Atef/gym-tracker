@@ -52,6 +52,7 @@ export async function clearDayData(date: string): Promise<void> {
   await recordDeletion('nutritionLogs', date);
   await recordDeletion('weightLogs', date);
   await recordDeletion('measurementLogs', date);
+  await recordDeletion('dailyChecklists', date);
 
   const cardio = await ds.cardioLogs.getAll();
   const cardioIds = cardio.filter((c) => c.date === date).map((c) => c.id);

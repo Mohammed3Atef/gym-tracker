@@ -155,7 +155,10 @@ export const useReminders = create<ReminderState>((set, get) => ({
       for (const r of get().reminders) {
         if (!r.enabled) continue;
         if (r.repeatDays.length > 0 && !r.repeatDays.includes(dow)) continue;
-        if (r.time !== hm) continue;
+        // Fire when due OR overdue today (not only on an exact minute match —
+        // background tabs get their timers throttled past the minute, which
+        // used to silently skip the reminder for the whole day).
+        if (r.time > hm) continue;
         if (r.lastFiredDate === day) continue;
         await get().update({ ...r, lastFiredDate: day });
         set({ due: { ...r, lastFiredDate: day } });

@@ -19,3 +19,19 @@ export const useDay = create<DayState>((set, get) => ({
   shift: (deltaDays) => set({ selected: addDays(get().selected, deltaDays) }),
   reset: () => set({ selected: today() }),
 }));
+
+// A PWA left open across midnight used to keep logging to yesterday: `selected`
+// was computed once at module load. Roll forward on re-focus — but only when
+// the user was focused on the old "today" (a deliberately selected past day
+// stays put).
+if (typeof document !== 'undefined') {
+  let lastToday = today();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const now = today();
+    if (now !== lastToday) {
+      if (useDay.getState().selected === lastToday) useDay.getState().setDay(now);
+      lastToday = now;
+    }
+  });
+}

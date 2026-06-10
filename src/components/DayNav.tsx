@@ -29,7 +29,6 @@ export function DayNav() {
         <span className="font-mono text-sm font-medium uppercase leading-tight tracking-[0.04em]">
           {isToday ? t('common.today') : shortDate(selected, i18n.language)}
         </span>
-        {!isToday && <span className="text-[10px] text-earth-muted">{shortDate(selected, i18n.language)}</span>}
         <input
           type="date"
           value={selected}

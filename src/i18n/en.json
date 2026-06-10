@@ -1,5 +1,13 @@
 {
   "app": { "name": "Gym Tracker" },
+  "onboard": {
+    "welcome": "Welcome",
+    "intro": "Set up your profile to get started, or sign in to restore your data.",
+    "getStarted": "Get started",
+    "haveAccount": "I have an account",
+    "signIn": "Sign in",
+    "syncing": "Syncing your data…"
+  },
   "nav": {
     "home": "Home",
     "workout": "Workout",
@@ -30,7 +38,6 @@
     "previous": "Previous"
   },
   "home": {
-    "greeting": "Hey {{name}}",
     "todaysWorkout": "Today's workout",
     "todaysNutrition": "Today's nutrition",
     "bodyWeight": "Body weight",
@@ -44,9 +51,6 @@
     "noReminder": "No reminders scheduled",
     "restDay": "Rest day — pick a workout",
     "quick": {
-      "startWorkout": "Start Workout",
-      "restTimer": "Rest Timer",
-      "startCardio": "Start Cardio",
       "addWeight": "Add Weight"
     },
     "logWeightTitle": "Log body weight"
@@ -60,7 +64,8 @@
     "noActiveSession": "No active workout",
     "session": "Session",
     "rest": "Rest",
-    "restTimer": "Rest timer",
+    "skip": "Skip",
+    "pause": "Pause",
     "restCustom": "Custom (e.g. 1:30)",
     "set": "Set",
     "warmup": "Warm-up",
@@ -118,6 +123,11 @@
     "steps": "Steps",
     "addSteps": "Add steps",
     "history": "History",
+    "setup": "Session setup",
+    "setupHint": "Distance and calories are estimated from your speed and incline — you can edit them when you finish.",
+    "speed": "Speed (km/h)",
+    "incline": "Incline (%)",
+    "kcal": "kcal",
     "types": {
       "walking": "Walking",
       "treadmill": "Treadmill",

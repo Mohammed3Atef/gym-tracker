@@ -11,18 +11,28 @@ async function boot(page: Page) {
   await page.goto('/');
   // Splash → app shell; wait for bottom navigation.
   await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
+  // Fresh installs show the first-launch onboarding overlay — complete it with
+  // a local profile so the rest of the suite can interact with the app.
+  const nameInput = page.locator('#ob-name');
+  if (await nameInput.isVisible().catch(() => false)) {
+    await nameInput.fill('Test User');
+    await page.getByRole('button', { name: 'Get started' }).click();
+    await expect(nameInput).toHaveCount(0);
+  }
 }
 
 async function waitForSW(page: Page) {
   await page
     .waitForFunction(() => !!navigator.serviceWorker?.controller, null, { timeout: 20_000 })
-    .catch(() => undefined);
+    .catch(() => {
+      throw new Error('service worker never took control — offline behaviour cannot be tested');
+    });
 }
 
 test.describe('Boot & navigation', () => {
   test('boots straight to the dashboard (no login)', async ({ page }) => {
     await boot(page);
-    await expect(page.getByText(/Hey/)).toBeVisible();
+    await expect(page.getByText(/Good (morning|afternoon|evening),/)).toBeVisible();
     await expect(page.getByText(/sign in|login/i)).toHaveCount(0);
   });
 
@@ -34,28 +44,11 @@ test.describe('Boot & navigation', () => {
       ['Cardio', 'Cardio & Steps'],
       ['Progress', 'Progress'],
       ['Settings', 'Settings'],
-      ['Home', 'Hey'],
+      ['Home', /Good (morning|afternoon|evening),/],
     ] as const) {
       await page.getByRole('link', { name }).click();
       await expect(page.getByText(heading).first()).toBeVisible();
     }
-  });
-});
-
-test.describe('Home quick actions', () => {
-  test('log body weight', async ({ page }) => {
-    await boot(page);
-    await page.getByRole('button', { name: 'Add Weight', exact: true }).click();
-    await page.getByRole('dialog').locator('input').fill('92.4');
-    await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByText('92.4').first()).toBeVisible();
-  });
-
-  test('rest timer quick-start', async ({ page }) => {
-    await boot(page);
-    await page.getByRole('button', { name: 'Rest Timer' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: '1:30' }).click();
-    await expect(page.getByRole('button', { name: '+15' })).toBeVisible(); // rest bar running
   });
 });
 

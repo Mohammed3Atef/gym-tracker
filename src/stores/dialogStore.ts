@@ -29,14 +29,37 @@ export const useDialog = create<DialogState>((set, get) => ({
   resolve: null,
 
   confirm(opts) {
+    // Settle any dialog still open (treat as cancelled) so its caller's await
+    // can't hang forever, and reset optional fields so the previous dialog's
+    // message/labels/danger styling don't leak into this one.
+    get().resolve?.(false);
     return new Promise<boolean>((resolve) => {
-      set({ open: true, isAlert: false, resolve, ...opts });
+      set({
+        message: undefined,
+        confirmLabel: undefined,
+        cancelLabel: undefined,
+        danger: false,
+        ...opts,
+        open: true,
+        isAlert: false,
+        resolve,
+      });
     });
   },
 
   alert(opts) {
+    get().resolve?.(false);
     return new Promise<void>((resolve) => {
-      set({ open: true, isAlert: true, resolve: () => resolve(), ...opts });
+      set({
+        message: undefined,
+        confirmLabel: undefined,
+        cancelLabel: undefined,
+        danger: false,
+        ...opts,
+        open: true,
+        isAlert: true,
+        resolve: () => resolve(),
+      });
     });
   },
 

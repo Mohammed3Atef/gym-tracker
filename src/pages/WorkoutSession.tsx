@@ -60,6 +60,8 @@ export function WorkoutSession() {
     sets: number;
     exercises: number;
   }>(null);
+  // Finished sessions open read-only; editing is an explicit choice.
+  const [editMode, setEditMode] = useState(false);
   const didInit = useRef(false);
 
   const running = !!active?.startedAt && !active?.finished;
@@ -71,6 +73,12 @@ export function WorkoutSession() {
     if (!active || didInit.current) return;
     didInit.current = true;
   }, [active]);
+
+  // Re-arm view mode whenever a different day's session is opened.
+  const activeId = active?.id;
+  useEffect(() => {
+    setEditMode(false);
+  }, [activeId]);
 
   const totalSets = active?.exercises.reduce((a, e) => a + e.sets.length, 0) ?? 0;
   const doneSets = active?.exercises.reduce((a, e) => a + e.sets.filter((s) => s.done).length, 0) ?? 0;
@@ -128,7 +136,8 @@ export function WorkoutSession() {
     toggleSetDone(exerciseId, setIndex);
     if (!wasDone) {
       vibrate(HAPTIC.success);
-      startRest(restDefault);
+      // Prefer the exercise's own rest time over the global default.
+      startRest(plan.exercises[exerciseId]?.restSec ?? restDefault);
     }
   };
 
@@ -186,6 +195,74 @@ export function WorkoutSession() {
         <button type="button" onClick={() => navigate('/')} className="btn-primary mt-8 w-full max-w-sm">
           {t('common.done')}
         </button>
+      </div>
+    );
+  }
+
+  // --- Read-only view of an already-finished session ---
+  // Opening a past (or today's completed) workout no longer drops the user
+  // into the live editing screen; editing is behind an explicit Edit tap.
+  if (active.finished && !editMode) {
+    let workingNo = 0;
+    return (
+      <div className="-mx-5 flex min-h-screen flex-col">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-line bg-black px-5 py-3">
+          <button type="button" onClick={minimize} className="icon-btn h-[42px] w-[42px]" aria-label="minimize">
+            <Icon name="chevronDown" size={20} />
+          </button>
+          <div className="flex flex-col items-center">
+            <p className="eyebrow">{day?.title ?? t('workout.session')}</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-success">{t('gt.workoutComplete')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditMode(true)}
+            className="flex h-[42px] items-center gap-1.5 rounded-full border border-line bg-surface-card px-5 font-mono text-[12px] font-medium uppercase tracking-[0.04em] text-brand transition-transform active:scale-95"
+          >
+            <Icon name="edit" size={14} /> {t('common.edit')}
+          </button>
+        </header>
+
+        <div className="flex-1 space-y-3 px-5 py-4 pb-24">
+          <div className="grid grid-cols-2 gap-3">
+            <StatTile icon="timer" value={formatDuration(active.durationSec)} label={t('gt.duration')} />
+            <StatTile icon="arrowUp" value={(logVolume(active) / 1000).toFixed(1)} unit="t" label={t('gt.volume')} />
+            <StatTile icon="bolt" value={logSetCount(active)} label={t('gt.setsDone')} />
+            <StatTile icon="list" value={logExerciseCount(active)} label={t('gt.exercises')} />
+          </div>
+
+          {active.exercises.map((log) => {
+            const ex = plan.exercises[log.exerciseId];
+            if (!ex) return null;
+            workingNo = 0;
+            return (
+              <section key={log.exerciseId} className="card">
+                <div className="mb-2.5 flex items-center gap-2.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: muscleColor(ex.targetMuscle) }} />
+                  <p className="min-w-0 truncate font-semibold">{ex.name}</p>
+                </div>
+                <ul className="space-y-1.5 font-mono text-[13px] text-earth-muted">
+                  {log.sets.map((s) => {
+                    const label = s.type === 'warmup' ? 'W' : String((workingNo += 1));
+                    return (
+                      <li key={s.setIndex} className="flex items-center justify-between gap-3">
+                        <span className="w-6 text-brand">{label}</span>
+                        <span className="flex-1 text-start" dir="ltr">
+                          {s.weightKg ?? '–'} {t('common.kg')} × {s.actualReps ?? '–'}
+                        </span>
+                        {s.done && <Icon name="check" size={14} className="text-success" />}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+
+          <button type="button" onClick={() => navigate('/workout')} className="btn-primary w-full">
+            {t('common.done')}
+          </button>
+        </div>
       </div>
     );
   }

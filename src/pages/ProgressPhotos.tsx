@@ -10,18 +10,38 @@ const POSES: PhotoPose[] = ['front', 'side', 'back'];
 
 /** Resolves a stored photo blob to an object URL and renders it. */
 function PhotoImg({ photo, className }: { photo: ProgressPhoto; className?: string }) {
+  const { t } = useTranslation();
   const url = usePhotos((s) => s.url);
   const [src, setSrc] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
   useEffect(() => {
-    let revoked: string | null = null;
+    let active = true;
+    let made: string | null = null;
+    setMissing(false);
     void url(photo).then((u) => {
+      if (!active) {
+        // Resolved after unmount — revoke right away so the object URL doesn't leak.
+        if (u) URL.revokeObjectURL(u);
+        return;
+      }
+      made = u;
       setSrc(u);
-      revoked = u;
+      setMissing(u == null);
     });
     return () => {
-      if (revoked) URL.revokeObjectURL(revoked);
+      active = false;
+      if (made) URL.revokeObjectURL(made);
     };
   }, [photo, url]);
+  // Blob missing locally (e.g. record synced from another device) — neutral placeholder.
+  if (missing) {
+    return (
+      <div className={`flex flex-col items-center justify-center gap-1 bg-surface-raised text-slate-500 ${className}`}>
+        <Icon name="image" size={20} />
+        <span className="text-[10px]">{t(`progress.${photo.pose}`)}</span>
+      </div>
+    );
+  }
   if (!src) return <div className={`animate-pulse bg-surface-raised ${className}`} />;
   return <img src={src} alt={photo.pose} className={className} />;
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useTimer } from '@/stores/timerStore';
 import { Icon } from './Icon';
 import { formatDuration } from '@/lib/utils';
@@ -7,6 +8,7 @@ import { formatDuration } from '@/lib/utils';
  * countdown on the left, −15 / +15 / Skip on the right, copper progress bar below.
  */
 export function RestTimerBar() {
+  const { t } = useTranslation();
   const { running, paused, remainingSec, totalSec, adjust, pause, resume, skip } = useTimer();
   if (!running && !paused) return null;
 
@@ -21,12 +23,12 @@ export function RestTimerBar() {
           type="button"
           onClick={() => (paused ? resume() : pause())}
           className="flex items-center gap-2.5 text-start"
-          aria-label={paused ? 'resume' : 'pause'}
+          aria-label={paused ? t('common.resume') : t('workout.pause')}
         >
           <span className="text-brand">
             <Icon name="timer" size={20} />
           </span>
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-earth-muted">Rest</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-earth-muted">{t('workout.rest')}</span>
           <span className="font-mono text-2xl font-medium tabular-nums text-white">
             {formatDuration(remainingSec)}
           </span>
@@ -43,7 +45,7 @@ export function RestTimerBar() {
             onClick={skip}
             className="flex h-9 items-center justify-center rounded-full border border-brand/40 px-3 font-mono text-xs uppercase tracking-[0.04em] text-brand transition-transform active:scale-90"
           >
-            Skip
+            {t('workout.skip')}
           </button>
         </div>
       </div>

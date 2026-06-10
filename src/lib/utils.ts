@@ -91,15 +91,44 @@ export function shortDate(key: string, locale = 'en'): string {
   });
 }
 
+export interface Debounced<A extends unknown[]> {
+  (...args: A): void;
+  /** Run a pending invocation immediately (no-op if none pending). */
+  flush: () => void;
+  /** Drop a pending invocation without running it. */
+  cancel: () => void;
+}
+
 export function debounce<A extends unknown[]>(
   fn: (...args: A) => void,
   ms: number,
-): (...args: A) => void {
+): Debounced<A> {
   let t: ReturnType<typeof setTimeout> | undefined;
-  return (...args: A) => {
+  let lastArgs: A | undefined;
+  const base = (...args: A) => {
+    lastArgs = args;
     if (t) clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
+    t = setTimeout(() => {
+      t = undefined;
+      const a = lastArgs;
+      lastArgs = undefined;
+      if (a) fn(...a);
+    }, ms);
   };
+  return Object.assign(base, {
+    flush: () => {
+      if (t) clearTimeout(t);
+      t = undefined;
+      const a = lastArgs;
+      lastArgs = undefined;
+      if (a) fn(...a);
+    },
+    cancel: () => {
+      if (t) clearTimeout(t);
+      t = undefined;
+      lastArgs = undefined;
+    },
+  });
 }
 
 export function sum(nums: number[]): number {
@@ -132,4 +161,19 @@ export function parseRestInput(raw: string): number | null {
 export function round(n: number, dp = 0): number {
   const f = 10 ** dp;
   return Math.round(n * f) / f;
+}
+
+/**
+ * Parse a user-typed decimal. Mobile keyboards (especially Arabic locale) emit
+ * "," or "٫" as the decimal separator and may use Arabic-Indic digits — plain
+ * Number() returns NaN for those. Returns 0 when unparseable.
+ */
+export function parseDecimal(raw: string): number {
+  const normalized = raw
+    .trim()
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[،,٫]/g, '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
 }

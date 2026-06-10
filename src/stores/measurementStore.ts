@@ -26,7 +26,15 @@ export const useMeasurements = create<MeasurementState>((set, get) => ({
     for (const [k, v] of Object.entries(values)) {
       if (typeof v === 'number' && !Number.isNaN(v) && v > 0) clean[k] = v;
     }
-    const log: MeasurementLog = { id: date, date, values: clean, updatedAt: Date.now(), dirty: true };
+    // Merge over the existing entry so keys not in `values` (e.g. custom parts) survive.
+    const existing = get().logs.find((l) => l.id === date);
+    const log: MeasurementLog = {
+      id: date,
+      date,
+      values: { ...existing?.values, ...clean },
+      updatedAt: Date.now(),
+      dirty: true,
+    };
     await getDataSource().measurementLogs.put(log);
     const others = get().logs.filter((l) => l.id !== date);
     set({ logs: [...others, log].sort((a, b) => a.date.localeCompare(b.date)) });

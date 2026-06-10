@@ -19,6 +19,9 @@ export function VideoPlayerSheet({ asset, title, onClose }: VideoPlayerSheetProp
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const triesRef = useRef(0);
+  // Every blob URL created for the current video — all revoked together on
+  // close / switching video, including ones re-resolved after a playback error.
+  const madeRef = useRef<string[]>([]);
 
   // Resolve the playable URL ONCE per video (keyed by id) so timer-driven
   // re-renders never revoke the blob URL mid-playback.
@@ -29,13 +32,12 @@ export function VideoPlayerSheet({ asset, title, onClose }: VideoPlayerSheetProp
       return;
     }
     let active = true;
-    let made: string | null = null;
     setFailed(false);
     triesRef.current = 0;
     void playableUrl(asset).then((u) => {
       if (!active) return;
       setUrl(u);
-      if (u && u.startsWith('blob:')) made = u;
+      if (u && u.startsWith('blob:')) madeRef.current.push(u);
     });
     // Auto-save a local file to IndexedDB on first online play so it plays
     // offline afterwards (gym = no internet).
@@ -44,7 +46,8 @@ export function VideoPlayerSheet({ asset, title, onClose }: VideoPlayerSheetProp
     }
     return () => {
       active = false;
-      if (made) URL.revokeObjectURL(made); // only on close / switching video
+      madeRef.current.forEach((u) => URL.revokeObjectURL(u)); // only on close / switching video
+      madeRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetId]);
@@ -56,6 +59,7 @@ export function VideoPlayerSheet({ asset, title, onClose }: VideoPlayerSheetProp
       triesRef.current += 1;
       const u = await playableUrl(asset);
       if (u) {
+        if (u.startsWith('blob:')) madeRef.current.push(u);
         setUrl(u);
         return;
       }

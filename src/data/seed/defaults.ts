@@ -1,15 +1,17 @@
 import type { AppSettings, Reminder, UserProfile } from '@/types';
 
 /**
- * Default local profile pre-filled from the coaching sheet so the app is usable
- * immediately on first launch. Everything is editable in Settings / Profile.
+ * Blank default profile. A fresh install must NOT carry anyone's personal
+ * data — the first-launch onboarding asks for name/weight, or the user signs
+ * in and their cloud profile is pulled. Everything is editable in Settings.
+ * (0 = "not set"; the UI treats falsy values as missing.)
  */
 export const SEED_PROFILE: UserProfile = {
   id: 'local-user',
-  name: 'Mohamed Atef',
-  age: 28,
-  weightKg: 93.5,
-  heightCm: 177,
+  name: '',
+  age: 0,
+  weightKg: 0,
+  heightCm: 0,
   goal: 'recomp',
   activityLevel: 'moderate',
   locale: 'en',

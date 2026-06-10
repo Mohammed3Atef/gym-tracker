@@ -6,12 +6,13 @@ import { useWorkout } from '@/stores/workoutStore';
 import { useMeasurements } from '@/stores/measurementStore';
 import { useSettings } from '@/stores/settingsStore';
 import { Icon } from '@/components/Icon';
+import { Sheet } from '@/components/Sheet';
 import { TopBar } from '@/components/TopBar';
 import { StatTile } from '@/components/StatTile';
 import { BarChart, LineChart } from '@/components/charts';
 import { logVolume, logSetCount, prByExercise } from '@/lib/calc';
 import { muscleColor, muscleLabel } from '@/lib/muscle';
-import { shortDate, weekStartOf } from '@/lib/utils';
+import { parseDecimal, shortDate, today, weekStartOf } from '@/lib/utils';
 
 type Tab = 'overview' | 'records' | 'body';
 
@@ -27,6 +28,7 @@ export function Progress() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const weightLogs = useCardio((s) => s.weightLogs);
+  const logWeight = useCardio((s) => s.logWeight);
   const plan = useWorkout((s) => s.plan);
   const logs = useWorkout((s) => s.logs);
   const measureLogs = useMeasurements((s) => s.logs);
@@ -103,6 +105,21 @@ export function Progress() {
 
     return { series, current, rows };
   }, [weightLogs, measureLogs]);
+
+  // Log today's bodyweight from the Body tab.
+  const [weightOpen, setWeightOpen] = useState(false);
+  const [weightVal, setWeightVal] = useState('');
+  const openWeight = () => {
+    // `|| undefined` also skips an unset (0) profile weight.
+    const seed = body.current ?? (profileWeight || undefined);
+    setWeightVal(seed != null ? String(seed) : '');
+    setWeightOpen(true);
+  };
+  const saveWeight = async () => {
+    const n = parseDecimal(weightVal); // accepts "93.5", "93,5", Arabic digits
+    if (n > 0) await logWeight(n, today());
+    setWeightOpen(false);
+  };
 
   return (
     <div className="anim-rise">
@@ -204,10 +221,13 @@ export function Progress() {
             <div className="mb-1 flex items-baseline justify-between">
               <span className="ui-label">{t('gt.bodyweight')}</span>
               <span className="font-display text-2xl font-bold">
-                {body.current ?? profileWeight ?? '–'}<span className="ml-1 text-sm font-normal text-earth-muted">{t('common.kg')}</span>
+                {body.current ?? (profileWeight || '–')}<span className="ml-1 text-sm font-normal text-earth-muted">{t('common.kg')}</span>
               </span>
             </div>
             <LineChart data={body.series} unit={t('common.kg')} emptyLabel={t('progress.noData')} />
+            <button type="button" onClick={openWeight} className="btn-ghost mt-3 w-full">
+              <Icon name="plus" size={15} /> {t('home.quick.addWeight')}
+            </button>
           </div>
 
           <div className="sec-head">
@@ -246,6 +266,25 @@ export function Progress() {
           </button>
         </div>
       )}
+
+      <Sheet open={weightOpen} onClose={() => setWeightOpen(false)} title={t('home.logWeightTitle')}>
+        <div className="space-y-3">
+          <div>
+            <label className="label">{t('settings.weight')} ({t('common.kg')})</label>
+            <input
+              className="input"
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={weightVal}
+              onChange={(e) => setWeightVal(e.target.value)}
+            />
+          </div>
+          <button type="button" onClick={() => void saveWeight()} className="btn-primary btn-lg w-full">
+            {t('common.save')}
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 }

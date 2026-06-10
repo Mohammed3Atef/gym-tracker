@@ -87,7 +87,7 @@ export function ExerciseCard({
             <button
               type="button"
               onClick={onRemoveExercise}
-              className="icon-btn h-8 w-8 hidden"
+              className="icon-btn h-8 w-8"
               aria-label={t("common.delete")}
             >
               <Icon name="close" size={15} />

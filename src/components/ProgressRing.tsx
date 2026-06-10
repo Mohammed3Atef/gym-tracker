@@ -21,7 +21,7 @@ export function ProgressRing({
 }: ProgressRingProps) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(1, value));
+  const clamped = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
   const offset = c * (1 - clamped);
 
   return (

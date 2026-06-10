@@ -1,8 +1,12 @@
 // Headless runtime smoke test: load each route, click into a workout session,
 // and fail if any console errors / page errors occur.
-import { chromium } from 'playwright';
+//
+// NOTE: requires a running preview server first:
+//   npm run preview   (serves the built app on http://localhost:4173)
+// then: npm run test:smoke   (or BASE=http://host:port to override)
+import { chromium } from '@playwright/test';
 
-const BASE = process.env.BASE || 'http://localhost:4317';
+const BASE = process.env.BASE || 'http://localhost:4173';
 const routes = ['/', '/workout', '/nutrition', '/cardio', '/progress', '/progress/photos', '/settings', '/settings/videos', '/settings/import'];
 
 const browser = await chromium.launch();

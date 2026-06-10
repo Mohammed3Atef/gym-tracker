@@ -42,6 +42,7 @@ export const useVideos = create<VideoState>((set, get) => ({
       sourceUrl: url,
       kind,
       status: 'not-downloaded',
+      userEdited: true, // protects the pasted link from seed-version upgrades
       updatedAt: Date.now(),
     };
     await getDataSource().videoAssets.put(next);
@@ -50,7 +51,7 @@ export const useVideos = create<VideoState>((set, get) => ({
 
   async download(id) {
     const asset = get().assets.find((a) => a.id === id);
-    if (!asset) return;
+    if (!asset || asset.status === 'downloading') return; // already in flight
     const downloading: VideoAsset = { ...asset, status: 'downloading' };
     set({
       assets: get().assets.map((a) => (a.id === id ? downloading : a)),
@@ -60,7 +61,10 @@ export const useVideos = create<VideoState>((set, get) => ({
       set({ progress: { ...get().progress, [id]: pct } }),
     );
     await getDataSource().videoAssets.put(result);
-    set({ assets: get().assets.map((a) => (a.id === id ? result : a)) });
+    // Drop the finished progress entry so the map doesn't grow forever.
+    const progress = { ...get().progress };
+    delete progress[id];
+    set({ assets: get().assets.map((a) => (a.id === id ? result : a)), progress });
   },
 
   async downloadAll() {

@@ -72,8 +72,10 @@ function emptyLog(date: string): NutritionLog {
     extraItems: {},
     waterMl: 0,
     creatineTaken: false,
-    updatedAt: Date.now(),
-    dirty: true,
+    // 0 / clean: an untouched in-memory placeholder must never look newer than
+    // real data (every mutation stamps its own Date.now() + dirty anyway).
+    updatedAt: 0,
+    dirty: false,
   };
 }
 
@@ -86,8 +88,16 @@ function normalize(log: NutritionLog): NutritionLog {
     extraItems: log.extraItems ?? {},
     supplementsTaken: log.supplementsTaken ?? {},
     mealsEaten: log.mealsEaten ?? {},
+    // Numeric/boolean backfills: a legacy or cloud-pulled log missing waterMl
+    // would otherwise make addWater compute `undefined + ml` → NaN, which then
+    // persists and breaks the water total, target check, and streaks.
+    waterMl: typeof log.waterMl === 'number' && !Number.isNaN(log.waterMl) ? log.waterMl : 0,
+    creatineTaken: log.creatineTaken ?? false,
   };
 }
+
+/** Stale-response guard: rapid day-switches fire overlapping loads. */
+let loadSeq = 0;
 
 export const useNutrition = create<NutritionState>((set, get) => ({
   plan: null,
@@ -95,11 +105,15 @@ export const useNutrition = create<NutritionState>((set, get) => ({
   loaded: false,
 
   async load(date = today()) {
+    const seq = ++loadSeq;
     const ds = getDataSource();
     const [plans, log] = await Promise.all([
       ds.mealPlans.getAll(),
       ds.nutritionLogs.get(date),
     ]);
+    // If a newer load started while we awaited, drop this result — otherwise
+    // the slower response wins and every toggle persists to the WRONG day.
+    if (seq !== loadSeq) return;
     set({ plan: plans[0] ?? null, log: log ? normalize(log) : emptyLog(date), loaded: true });
   },
 

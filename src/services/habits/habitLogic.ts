@@ -52,11 +52,13 @@ export function buildChecklist(input: DayInputs): DailyChecklist {
     for (const meal of mealPlan.meals) {
       setItem(`meal:${meal.id}`, !!nutritionLog?.mealsEaten[meal.id]);
     }
-    // Supplements: done when every supplement is checked.
+    // Supplements: done when every supplement is checked. Omitted entirely for
+    // plans with no supplements — a permanently-false item would make
+    // `fullyComplete` unreachable and freeze the overall streak at 0.
     const supps = mealPlan.supplements;
-    const allSupps =
-      supps.length > 0 && supps.every((s) => nutritionLog?.supplementsTaken[s.id]);
-    setItem('supplements', allSupps);
+    if (supps.length > 0) {
+      setItem('supplements', supps.every((s) => nutritionLog?.supplementsTaken[s.id]));
+    }
   }
 
   // Water target.

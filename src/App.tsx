@@ -14,6 +14,7 @@ import { useMeasurements } from '@/stores/measurementStore';
 import { setupPersistentStorage } from '@/lib/storage';
 import { AppShell } from '@/components/AppShell';
 import { DialogHost } from '@/components/DialogHost';
+import { Onboarding } from '@/components/Onboarding';
 import { Splash } from '@/components/Splash';
 import { Home } from '@/pages/Home';
 import { Workout } from '@/pages/Workout';
@@ -75,6 +76,7 @@ export function App() {
   return (
     <>
     <DialogHost />
+    <Onboarding />
     <Routes>
       <Route path="/" element={<AppShell showDayNav><Home /></AppShell>} />
       <Route path="/workout" element={<AppShell><Workout /></AppShell>} />

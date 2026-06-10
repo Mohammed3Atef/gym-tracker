@@ -10,6 +10,34 @@ export function e1rm(kg: number, reps: number): number {
   return Math.round(kg * (1 + reps / 30));
 }
 
+/** Distance covered at a constant speed, rounded to 2 decimals (km). */
+export function cardioDistanceKm(speedKmh: number, durationSec: number): number {
+  if (speedKmh <= 0 || durationSec <= 0) return 0;
+  return Math.round(speedKmh * (durationSec / 3600) * 100) / 100;
+}
+
+/**
+ * Estimated calories for treadmill-style cardio (ACSM metabolic equations).
+ *  Walking (≤ 7.2 km/h): VO2 = 3.5 + 0.1·v + 1.8·v·grade   (v in m/min)
+ *  Running (faster):     VO2 = 3.5 + 0.2·v + 0.9·v·grade
+ * kcal/min ≈ VO2 (ml/kg/min) · weight (kg) / 1000 · 5 kcal per litre O2.
+ * An estimate — the finish popup lets the user correct it before saving.
+ */
+export function cardioCalories(
+  speedKmh: number,
+  inclinePct: number,
+  weightKg: number,
+  durationSec: number,
+): number {
+  if (speedKmh <= 0 || weightKg <= 0 || durationSec <= 0) return 0;
+  const v = (speedKmh * 1000) / 60; // m/min
+  const grade = Math.max(0, inclinePct) / 100;
+  const vo2 =
+    speedKmh <= 7.2 ? 3.5 + 0.1 * v + 1.8 * v * grade : 3.5 + 0.2 * v + 0.9 * v * grade;
+  const kcalPerMin = (vo2 * weightKg) / 200;
+  return Math.round(kcalPerMin * (durationSec / 60));
+}
+
 /** Σ kg*reps over completed sets of a single set list. */
 export function setsVolume(sets: SetLog[]): number {
   return sets.reduce(

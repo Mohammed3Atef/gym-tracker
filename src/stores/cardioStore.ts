@@ -10,6 +10,12 @@ interface CardioState {
   cardioLogs: CardioLog[];
   weightLogs: WeightLog[];
   loaded: boolean;
+  /** Live cardio timer start (epoch ms) — in memory so navigation doesn't lose it. */
+  liveStart: number | null;
+  /** Speed/incline entered before starting — drives live distance/kcal estimates. */
+  liveParams: { speedKmh: number; inclinePct: number } | null;
+  startLive: (params?: { speedKmh: number; inclinePct: number }) => void;
+  stopLive: () => void;
   load: () => Promise<void>;
   addCardio: (input: {
     type: CardioType;
@@ -31,6 +37,16 @@ export const useCardio = create<CardioState>((set, get) => ({
   cardioLogs: [],
   weightLogs: [],
   loaded: false,
+  liveStart: null,
+  liveParams: null,
+
+  startLive(params) {
+    set({ liveStart: Date.now(), liveParams: params ?? null });
+  },
+
+  stopLive() {
+    set({ liveStart: null, liveParams: null });
+  },
 
   async load() {
     const ds = getDataSource();

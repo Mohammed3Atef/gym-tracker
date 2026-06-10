@@ -18,7 +18,8 @@ interface CloudState {
   lastSync: number | null;
   error: string | null;
   init: () => void;
-  signIn: (email: string, password: string, create?: boolean) => Promise<void>;
+  /** Resolves true on success; on failure sets `error` and resolves false. */
+  signIn: (email: string, password: string, create?: boolean) => Promise<boolean>;
   signOut: () => Promise<void>;
   syncNow: (force?: boolean) => Promise<void>;
   wipeCloud: () => Promise<void>;
@@ -33,6 +34,53 @@ export function cloudStatus(s: Pick<CloudState, 'available' | 'user' | 'syncing'
   return 'signedIn';
 }
 
+/** Guard so init() can be called from React effects (StrictMode re-runs them). */
+let initialized = false;
+
+/**
+ * After a pull lands new records in IndexedDB, the in-memory zustand stores
+ * still hold the pre-sync data — and the user's next interaction would persist
+ * that stale state right back over the pulled records (with a newer updatedAt,
+ * wiping the other device's data in the cloud too). Reload them all.
+ */
+async function refreshStoresAfterPull(): Promise<void> {
+  const [
+    { useSettings },
+    { useWorkout },
+    { useNutrition },
+    { useCardio },
+    { useMeasurements },
+    { useHabits },
+    { usePhotos },
+    { useReminders },
+    { useDay },
+  ] = await Promise.all([
+    import('@/stores/settingsStore'),
+    import('@/stores/workoutStore'),
+    import('@/stores/nutritionStore'),
+    import('@/stores/cardioStore'),
+    import('@/stores/measurementStore'),
+    import('@/stores/habitStore'),
+    import('@/stores/photoStore'),
+    import('@/services/reminders/reminderStore'),
+    import('@/stores/dayStore'),
+  ]);
+  const day = useDay.getState().selected;
+  await Promise.all([
+    useSettings.getState().load(),
+    useWorkout.getState().load(),
+    useNutrition.getState().load(day),
+    useCardio.getState().load(),
+    useMeasurements.getState().load(),
+    usePhotos.getState().load(),
+    useReminders.getState().load(),
+  ]);
+  // load() refocuses today — restore the user's selected day (the loadDay
+  // guard keeps a live in-progress session untouched).
+  useWorkout.getState().loadDay(day);
+  await useHabits.getState().refresh(day);
+}
+
 export const useCloud = create<CloudState>((set, get) => ({
   available: cloudAvailable(),
   user: null,
@@ -41,6 +89,8 @@ export const useCloud = create<CloudState>((set, get) => ({
   error: null,
 
   init() {
+    if (initialized) return; // React StrictMode mounts effects twice in dev
+    initialized = true;
     if (!cloudAvailable()) {
       console.info('[firebase] not configured — running local-only');
       return;
@@ -54,10 +104,10 @@ export const useCloud = create<CloudState>((set, get) => ({
         if (u) void get().syncNow(true); // first sign-in sync always runs
       });
     });
-    // Auto-sync: on reconnect, on app foreground, and periodically. These are
-    // opportunistic and throttled (see syncNow) so a flurry of tab-refocus /
-    // reconnect events doesn't re-pull everything each time.
-    window.addEventListener('online', () => void get().syncNow());
+    // Auto-sync: on reconnect, on app foreground, and periodically. Foreground/
+    // interval syncs are opportunistic and throttled (see syncNow); reconnect
+    // forces, since the offline gap means the last "sync" did nothing.
+    window.addEventListener('online', () => void get().syncNow(true));
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void get().syncNow();
     });
@@ -75,9 +125,11 @@ export const useCloud = create<CloudState>((set, get) => ({
       console.info('[firebase] signed in as', user.uid);
       set({ user: { uid: user.uid, email: user.email } });
       await get().syncNow(true);
+      return true;
     } catch (e) {
       console.error('[firebase] sign-in failed:', e);
       set({ error: e instanceof Error ? e.message : 'Sign-in failed' });
+      return false;
     }
   },
 
@@ -97,7 +149,9 @@ export const useCloud = create<CloudState>((set, get) => ({
     try {
       const { SyncEngine } = await import('@/data/sync/SyncEngine');
       const result = await new SyncEngine(user.uid).sync();
+      if (result.offline) return; // not a real sync — don't claim "synced"
       console.info(`[sync] done · pushed ${result.pushed}, pulled ${result.pulled} → users/${user.uid}`);
+      if (result.pulled > 0) await refreshStoresAfterPull();
       set({ lastSync: Date.now() });
     } catch (e) {
       console.error('[sync] failed:', e);
@@ -110,7 +164,16 @@ export const useCloud = create<CloudState>((set, get) => ({
   async wipeCloud() {
     const { user } = get();
     if (!user) return;
-    const { SyncEngine } = await import('@/data/sync/SyncEngine');
-    await new SyncEngine(user.uid).wipeCloud();
+    // Wait out any in-flight sync, then hold the mutex so a background sync
+    // can't push deleted records back while the wipe runs.
+    while (get().syncing) await new Promise((r) => setTimeout(r, 200));
+    set({ syncing: true });
+    try {
+      const { SyncEngine } = await import('@/data/sync/SyncEngine');
+      await new SyncEngine(user.uid).wipeCloud();
+      set({ lastSync: null });
+    } finally {
+      set({ syncing: false });
+    }
   },
 }));

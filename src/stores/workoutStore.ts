@@ -67,10 +67,20 @@ function buildSets(workingSets: number, repRange: string): SetLog[] {
   return sets;
 }
 
+/** True when no set in the log has any user-entered data. */
+function isEmptyLog(l: WorkoutLog): boolean {
+  return l.exercises.every((e) =>
+    e.sets.every((s) => s.weightKg == null && s.actualReps == null && !s.done),
+  );
+}
+
 function buildSession(plan: WorkoutPlan, day: WorkoutDay, date: string): WorkoutLog {
-  const exercises: ExerciseLog[] = day.exerciseIds.map((exId) => {
+  // Tolerate plan days referencing a removed/unknown exercise (corrupt or
+  // partially-synced plan) instead of crashing "Start workout".
+  const exercises: ExerciseLog[] = day.exerciseIds.flatMap((exId) => {
     const ex = plan.exercises[exId];
-    return { exerciseId: exId, sets: buildSets(ex.workingSets, ex.repRange), done: false };
+    if (!ex) return [];
+    return [{ exerciseId: exId, sets: buildSets(ex.workingSets, ex.repRange), done: false }];
   });
   return {
     id: date,
@@ -109,9 +119,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     // real or partially-filled workout, here or in the cloud. Today's draft is
     // always kept so a refresh can resume it.
     const td = today();
-    const isEmpty = (l: WorkoutLog) =>
-      l.exercises.every((e) => e.sets.every((s) => s.weightKg == null && s.actualReps == null && !s.done));
-    const stale = logs.filter((l) => !l.startedAt && !l.finished && l.id !== td && isEmpty(l));
+    const stale = logs.filter((l) => !l.startedAt && !l.finished && l.id !== td && isEmptyLog(l));
     if (stale.length) {
       await Promise.all(stale.map((l) => ds.workoutLogs.remove(l.id)));
     }
@@ -153,6 +161,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     const session = existing && existing.dayId === dayId ? existing : buildSession(plan, day, date);
     const others = logs.filter((l) => l.id !== session.id);
     set({ active: session, logs: [session, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
+    persist.flush(); // settle any pending debounced write before the direct put
     void getDataSource().workoutLogs.put(session);
   },
 
@@ -163,6 +172,7 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     const next = { ...active, startedAt: Date.now(), updatedAt: Date.now(), dirty: true };
     const others = logs.filter((l) => l.id !== next.id);
     set({ active: next, logs: [next, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
+    persist.flush(); // settle any pending debounced write before the direct put
     void getDataSource().workoutLogs.put(next);
   },
 
@@ -173,17 +183,25 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
   /** Drop an unstarted draft (e.g. user backs out without starting). */
   discardDraft() {
     const { active, logs } = get();
-    if (active && !active.startedAt && !active.finished) {
-      // Local-only removal — a draft never syncs, so no cloud tombstone (which
-      // could otherwise delete real data sharing this date).
-      void getDataSource().workoutLogs.remove(active.id);
-      set({ active: null, logs: logs.filter((l) => l.id !== active.id) });
+    if (!active || active.startedAt || active.finished) return;
+    // A draft with entered data (typed weights/reps) is NOT discarded — that
+    // would silently lose the user's input. Persist it and just unfocus.
+    if (!isEmptyLog(active)) {
+      persist.flush();
+      set({ active: null });
+      return;
     }
+    // Local-only removal — a draft never syncs, so no cloud tombstone (which
+    // could otherwise delete real data sharing this date).
+    persist.cancel(); // a pending write would resurrect the deleted draft
+    void getDataSource().workoutLogs.remove(active.id);
+    set({ active: null, logs: logs.filter((l) => l.id !== active.id) });
   },
 
   async discardActive() {
     const { active } = get();
     if (!active) return;
+    persist.cancel(); // a pending write would resurrect the deleted log
     if (active.startedAt || active.finished) {
       await getDataSource().workoutLogs.remove(active.id);
       await recordDeletion('workoutLogs', active.id);
@@ -225,7 +243,8 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       const others = logs.filter((l) => l.id !== next.id);
       set({ active: next, logs: [next, ...others].sort((a, b) => b.date.localeCompare(a.date)) });
     } else {
-      set({ active: next });
+      // Mirror into logs too, so loadDay/previousFor never read a stale copy.
+      set({ active: next, logs: logs.map((l) => (l.id === next.id ? next : l)) });
     }
     persist(next);
   },
@@ -330,14 +349,15 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
     const day = plan.days.find((d) => d.id === active.dayId);
     if (!day) return;
     const present = new Map(active.exercises.map((e) => [e.exerciseId, e]));
-    const ordered: ExerciseLog[] = day.exerciseIds.map((id) => {
+    const ordered: ExerciseLog[] = day.exerciseIds.flatMap((id) => {
       const cur = present.get(id);
       if (cur) {
         present.delete(id);
-        return cur;
+        return [cur];
       }
       const ex = plan.exercises[id];
-      return { exerciseId: id, sets: buildSets(ex.workingSets, ex.repRange), done: false };
+      if (!ex) return []; // tolerate plans referencing a removed exercise
+      return [{ exerciseId: id, sets: buildSets(ex.workingSets, ex.repRange), done: false }];
     });
     const extras = active.exercises.filter((e) => present.has(e.exerciseId));
     const next = { ...active, exercises: [...ordered, ...extras], updatedAt: Date.now(), dirty: true };
@@ -367,6 +387,9 @@ export const useWorkout = create<WorkoutState>((set, get) => ({
       updatedAt: endedAt,
       dirty: true,
     };
+    // Drop any pending debounced write: it holds a pre-finish snapshot that
+    // would otherwise land AFTER this put and revert the session to unfinished.
+    persist.cancel();
     await getDataSource().workoutLogs.put(finished);
     const others = logs.filter((l) => l.id !== finished.id);
     set({

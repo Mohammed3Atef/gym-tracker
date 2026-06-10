@@ -130,8 +130,12 @@ export function Home() {
           <p className="eyebrow mb-2">{dateEyebrow}</p>
           <h1 className="h1">
             {greeting}
-            <br />
-            <span className="text-earth-muted">{profile?.name ?? ''}.</span>
+            {profile?.name?.trim() ? (
+              <>
+                <br />
+                <span className="text-earth-muted">{profile.name}.</span>
+              </>
+            ) : null}
           </h1>
         </div>
         <div className="flex flex-col items-end gap-2">

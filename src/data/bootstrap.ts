@@ -30,12 +30,15 @@ export async function bootstrapData(): Promise<void> {
 
   const profile = await ds.profile.get();
   if (!profile) {
-    await ds.profile.set({ ...SEED_PROFILE, createdAt: stamp, updatedAt: stamp });
+    // updatedAt stays 0: a freshly-seeded singleton must always LOSE the
+    // first sync against a real cloud copy. Seeding with Date.now() used to
+    // clobber the user's cloud profile/settings on every new device.
+    await ds.profile.set({ ...SEED_PROFILE, createdAt: stamp, updatedAt: 0 });
   }
 
   const settings = await ds.settings.get();
   if (!settings) {
-    await ds.settings.set({ ...SEED_SETTINGS, updatedAt: stamp });
+    await ds.settings.set({ ...SEED_SETTINGS, updatedAt: 0 });
   }
 
   // Workout plan: seed if missing, or refresh on version upgrade.
@@ -59,9 +62,10 @@ export async function bootstrapData(): Promise<void> {
     const byId = new Map(existingVideos.map((v) => [v.id, v]));
     const merged = SEED_VIDEO_ASSETS.map((seed) => {
       const cur = byId.get(seed.id);
-      // Keep only a genuinely downloaded offline copy; otherwise take the new
+      // Keep a genuinely downloaded offline copy AND any user-pasted link
+      // (userEdited) — even if not downloaded yet; otherwise take the new
       // seed URL (so the v3 local-file links replace the old YouTube ones).
-      if (cur && cur.status === 'downloaded') return cur;
+      if (cur && (cur.status === 'downloaded' || cur.userEdited)) return cur;
       return { ...seed, updatedAt: stamp };
     });
     await ds.videoAssets.putMany(merged);

@@ -77,7 +77,7 @@ export function Nutrition() {
     setEditor(null);
   };
 
-  const waterPct = Math.min(1, log.waterMl / targets.waterMl);
+  const waterPct = Math.min(1, log.waterMl / (targets.waterMl || 1));
 
   return (
     <div className="anim-rise space-y-4">

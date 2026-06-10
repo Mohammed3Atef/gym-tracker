@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { MeasurementKey } from '@/types';
 import { useMeasurements } from '@/stores/measurementStore';
 import { useDay } from '@/stores/dayStore';
+import { useSettings } from '@/stores/settingsStore';
 import { Icon } from '@/components/Icon';
 import { TopBar } from '@/components/TopBar';
 import { shortDate } from '@/lib/utils';
@@ -34,12 +35,16 @@ export function Measurements() {
   const save = useMeasurements((s) => s.save);
   const forDate = useMeasurements((s) => s.forDate);
   const selected = useDay((s) => s.selected);
+  const customMeasurements = useSettings((s) => s.settings?.customMeasurements);
 
   useEffect(() => {
     if (!loaded) void load();
   }, [loaded, load]);
 
-  const labelOf = (key: string) => t(`measure.parts.${key}`);
+  const labelOf = (key: string) =>
+    t(`measure.parts.${key}`, {
+      defaultValue: customMeasurements?.find((m) => m.key === key)?.label ?? key,
+    });
 
   const existing = forDate(selected);
   const [form, setForm] = useState<Record<string, string>>({});

@@ -9,12 +9,15 @@ import { useDay } from '@/stores/dayStore';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { TopBar } from '@/components/TopBar';
-import { formatDuration, shortDate } from '@/lib/utils';
+import { cardioCalories, cardioDistanceKm } from '@/lib/calc';
+import { formatDuration, parseDecimal, shortDate } from '@/lib/utils';
 
 const TYPES: CardioType[] = ['walking', 'treadmill', 'running', 'cycling', 'other'];
+/** Types where a constant speed/incline makes distance & calories computable. */
+const SPEED_TYPES: CardioType[] = ['walking', 'treadmill', 'running'];
 
 export function Cardio() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const cardioLogs = useCardio((s) => s.cardioLogs);
   const addCardio = useCardio((s) => s.addCardio);
   const removeCardio = useCardio((s) => s.removeCardio);
@@ -22,21 +25,53 @@ export function Cardio() {
   const cardioSecFor = useCardio((s) => s.cardioSecFor);
   const targets = useSettings((s) => s.settings?.targets);
 
-  const [running, setRunning] = useState<number | null>(null);
+  // Live timer start lives in the store so navigating away doesn't lose it.
+  const running = useCardio((s) => s.liveStart);
+  const liveParams = useCardio((s) => s.liveParams);
+  const startLive = useCardio((s) => s.startLive);
+  const stopLive = useCardio((s) => s.stopLive);
+  const latestWeight = useCardio((s) => s.latestWeight);
+  const profileWeight = useSettings((s) => s.profile?.weightKg);
   const [type, setType] = useState<CardioType>('treadmill');
   const [logOpen, setLogOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setup, setSetup] = useState({ speed: '5', incline: '0' });
   const [form, setForm] = useState({ minutes: '', steps: '', distance: '', calories: '' });
 
   const elapsed = useElapsed(running);
   useWakeLock(running != null);
 
-  // Stopping the live timer hands the elapsed minutes to the unified log form so
-  // you can add steps/distance and save it all as one entry.
+  // Bodyweight for the calorie estimate: latest logged > profile > 70 kg fallback.
+  const weightForCalc = latestWeight() || profileWeight || 70;
+
+  // Speed-based types ask for speed/incline first so distance & calories can be
+  // computed automatically; other types just start the timer.
+  const onStart = () => {
+    if (SPEED_TYPES.includes(type)) setSetupOpen(true);
+    else startLive();
+  };
+  const startWithParams = () => {
+    // parseDecimal accepts "5.5", "5,5" and Arabic-Indic digits alike.
+    const speedKmh = parseDecimal(setup.speed);
+    const inclinePct = parseDecimal(setup.incline);
+    setSetupOpen(false);
+    startLive(speedKmh > 0 ? { speedKmh, inclinePct } : undefined);
+  };
+
+  // Stopping the live timer hands the elapsed minutes — plus the computed
+  // distance/calories when speed was set — to the editable log popup.
   const stopAndSave = () => {
     if (running == null) return;
-    const mins = Math.max(1, Math.round((Date.now() - running) / 60000));
-    setRunning(null);
-    setForm({ minutes: String(mins), steps: '', distance: '', calories: '' });
+    const secs = Math.max(60, Math.round((Date.now() - running) / 1000));
+    const mins = Math.max(1, Math.round(secs / 60));
+    const p = liveParams;
+    stopLive();
+    setForm({
+      minutes: String(mins),
+      steps: '',
+      distance: p ? String(cardioDistanceKm(p.speedKmh, secs)) : '',
+      calories: p ? String(cardioCalories(p.speedKmh, p.inclinePct, weightForCalc, secs)) : '',
+    });
     setLogOpen(true);
   };
 
@@ -44,10 +79,10 @@ export function Cardio() {
   const saveManual = async () => {
     await addCardio({
       type,
-      durationSec: (Number(form.minutes) || 0) * 60,
-      steps: form.steps ? Number(form.steps) : null,
-      distanceKm: form.distance ? Number(form.distance) : null,
-      caloriesBurned: form.calories ? Number(form.calories) : null,
+      durationSec: parseDecimal(form.minutes) * 60,
+      steps: form.steps ? parseDecimal(form.steps) || null : null,
+      distanceKm: form.distance ? parseDecimal(form.distance) || null : null,
+      caloriesBurned: form.calories ? parseDecimal(form.calories) || null : null,
     });
     setForm({ minutes: '', steps: '', distance: '', calories: '' });
     setLogOpen(false);
@@ -118,9 +153,15 @@ export function Cardio() {
           ))}
         </div>
         <p className="font-mono text-4xl font-bold tabular-nums text-brand-light">{formatDuration(elapsed)}</p>
+        {running != null && liveParams && (
+          <p className="mt-1.5 font-mono text-[12.5px] text-slate-400" dir="ltr">
+            {cardioDistanceKm(liveParams.speedKmh, elapsed).toFixed(2)} km · ~
+            {cardioCalories(liveParams.speedKmh, liveParams.inclinePct, weightForCalc, elapsed)} {t('cardio.kcal')}
+          </p>
+        )}
         <div className="mt-3 flex gap-2">
           {running == null ? (
-            <button type="button" onClick={() => setRunning(Date.now())} className="btn-primary btn-lg flex-1">
+            <button type="button" onClick={onStart} className="btn-primary btn-lg flex-1">
               <Icon name="play" size={20} /> {t('common.start')}
             </button>
           ) : (
@@ -143,7 +184,7 @@ export function Cardio() {
             <li key={c.id} className="card flex items-center justify-between py-3">
               <div>
                 <p className="font-medium">{t(`cardio.types.${c.type}`)}</p>
-                <p className="text-xs text-slate-400">{shortDate(c.date)}</p>
+                <p className="text-xs text-slate-400">{shortDate(c.date, i18n.language)}</p>
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-300">
                 {c.durationSec > 0 && <span>{Math.round(c.durationSec / 60)}{t('common.min')}</span>}
@@ -187,6 +228,42 @@ export function Cardio() {
             </div>
           </div>
           <button type="button" onClick={() => void saveManual()} className="btn-primary btn-lg w-full">{t('common.save')}</button>
+        </div>
+      </Sheet>
+
+      {/* Pre-start setup: speed + incline drive automatic distance/calories. */}
+      <Sheet open={setupOpen} onClose={() => setSetupOpen(false)} title={t('cardio.setup')}>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-400">{t('cardio.setupHint')}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label" htmlFor="cardio-speed">{t('cardio.speed')}</label>
+              <input
+                id="cardio-speed"
+                className="input"
+                inputMode="decimal"
+                placeholder="5.0"
+                value={setup.speed}
+                onChange={(e) => setSetup({ ...setup, speed: e.target.value })}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="cardio-incline">{t('cardio.incline')}</label>
+              <input
+                id="cardio-incline"
+                className="input"
+                inputMode="decimal"
+                placeholder="0"
+                value={setup.incline}
+                onChange={(e) => setSetup({ ...setup, incline: e.target.value })}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </div>
+          </div>
+          <button type="button" onClick={startWithParams} className="btn-primary btn-lg w-full">
+            <Icon name="play" size={18} /> {t('common.start')}
+          </button>
         </div>
       </Sheet>
     </div>
